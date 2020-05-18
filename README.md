@@ -1,5 +1,6 @@
 # plotpal
 Post-processing tools for plotting results from Dedalus simulations.
+The code in this repository is backed up on Zenodo, and is citeable at: [![DOI](https://zenodo.org/badge/265006663.svg)](https://zenodo.org/badge/latestdoi/265006663)
 
 # Installation
 To install plotpal on your local machine, navigate to the root plotpal/ directory (where setup.py is located), and type:
