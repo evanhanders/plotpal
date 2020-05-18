@@ -22,7 +22,7 @@ Options:
 """
 from docopt import docopt
 args = docopt(__doc__)
-from plot_logic.slices import MultiRunSlicePlotter
+from logic.slices import MultiRunSlicePlotter
 import logging
 logger = logging.getLogger(__name__)
 

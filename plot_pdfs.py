@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 from docopt import docopt
 args = docopt(__doc__)
-from plot_logic.pdfs import PdfPlotter
+from logic.pdfs import PdfPlotter
 
 root_dir = args['<root_dir>']
 fig_name  = args['--fig_name']

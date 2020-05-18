@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 from docopt import docopt
 args = docopt(__doc__)
-from plot_logic.scalars import ScalarFigure, ScalarPlotter
+from logic.scalars import ScalarFigure, ScalarPlotter
 
 root_dir = args['<root_dir>']
 fig_name  = args['--fig_name']

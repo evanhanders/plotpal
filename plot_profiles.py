@@ -20,7 +20,7 @@ Options:
 """
 from docopt import docopt
 args = docopt(__doc__)
-from plot_logic.profiles import ProfilePlotter
+from logic.profiles import ProfilePlotter
 import logging
 logger = logging.getLogger(__name__)
 
