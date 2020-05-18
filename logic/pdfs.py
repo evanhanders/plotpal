@@ -15,9 +15,9 @@ matplotlib.rcParams.update({'font.size': 9})
 
 from dedalus.tools.parallel import Sync
 
-path.insert(0, './plot_logic')
-from plot_logic.file_reader import SingleFiletypePlotter
-from plot_logic.plot_grid import PlotGrid
+path.insert(0, './logic')
+from logic.file_reader import SingleFiletypePlotter
+from logic.plot_grid import PlotGrid
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
