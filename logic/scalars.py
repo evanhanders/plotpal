@@ -59,7 +59,7 @@ class ScalarFigure(PlotGrid):
                 self.panels.append('ax_{}-{}'.format(i,j))
                 self.panel_fields.append([])
 
-    def add_field(self, panel, field):
+    def add_field(self, panel, field, log=False):
         """
         Add a field to a specified panel
 
@@ -69,8 +69,10 @@ class ScalarFigure(PlotGrid):
             The panel index to add this field to
         field : string
             Name of dedalus task to plot on this panel
+        log : bool, optional
+            If True, log-scale the y-axis of the plot
         """
-        self.panel_fields[panel].append(field)
+        self.panel_fields[panel].append((field, log))
 
 class ScalarPlotter(SingleFiletypePlotter):
     """
@@ -116,7 +118,7 @@ class ScalarPlotter(SingleFiletypePlotter):
         self.figures = fig_list
         for fig in self.figures:
             for field_list in fig.panel_fields:
-                for fd in field_list:
+                for fd, log in field_list:
                     if fd not in self.fields:
                         self.fields.append(fd)
 
@@ -166,8 +168,10 @@ class ScalarPlotter(SingleFiletypePlotter):
             for j, fig in enumerate(self.figures):
                 for i, k in enumerate(fig.panels):
                     ax = fig.axes[k]
-                    for fd in fig.panel_fields[i]:
+                    for fd, log in fig.panel_fields[i]:
                         ax.plot(self.trace_data['sim_time'], self.trace_data[fd], label=fd)
+                        if log:
+                            ax.set_yscale('log')
                     ax.set_xlim(self.trace_data['sim_time'].min(), self.trace_data['sim_time'].max())
                     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%0.1e'))
                     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%0.1e'))
@@ -205,7 +209,7 @@ class ScalarPlotter(SingleFiletypePlotter):
                 for i, k in enumerate(fig.panels):
                     ax = fig.axes[k]
                     ax.grid(which='major')
-                    for fd in fig.panel_fields[i]:
+                    for fd, log in fig.panel_fields[i]:
                         final_mean = np.mean(self.trace_data[fd][-int(0.1*len(self.trace_data[fd])):])
                         ax.plot(self.trace_data['sim_time'], np.abs(1 - self.trace_data[fd]/final_mean), label="1 - ({:s})/(mean)".format(fd))
                     ax.set_yscale('log')

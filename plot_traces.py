@@ -18,7 +18,7 @@ from logic.scalars import ScalarFigure, ScalarPlotter
 # Read in master output directory
 root_dir    = args['<root_dir>']
 data_dir    = args['--data_dir']
-if root_dirs is None:
+if root_dir is None:
     print('No dedalus output dir specified, exiting')
     import sys
     sys.exit()
@@ -37,8 +37,9 @@ fig1.add_field(0, 'Nu')
 figs.append(fig1)
 
 # Re vs. time
-fig2 = ScalarFigure(1, 1, col_in=6, fig_name='pe_trace')
-fig2.add_field(0, 'Pe')
+fig2 = ScalarFigure(2, 1, col_in=6, fig_name='pe_trace')
+fig2.add_field(0, 'Pe', log=True)
+fig2.add_field(1, 'Pe', log=False)
 figs.append(fig2)
 
 # dT 
