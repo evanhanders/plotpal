@@ -12,9 +12,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 matplotlib.rcParams.update({'font.size': 9})
 
-path.insert(0, './logic')
-from logic.file_reader import SingleFiletypePlotter
-from logic.plot_grid import ColorbarPlotGrid, PlotGrid
+from plotpal.file_reader import SingleFiletypePlotter
+from plotpal.plot_grid import ColorbarPlotGrid, PlotGrid
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
