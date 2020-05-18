@@ -120,31 +120,29 @@ class ColorbarPlotGrid(PlotGrid):
         """ Create subplot and colorbar axes """
         for i in range(self.ncols):
             for j in range(self.nrows):
-                self.axes['ax_{}-{}'.format(i,j)] = plt.subplot(self.gs.new_subplotspec(
-                                                     (fl_int(j*(self.row_size+self.padding) + 0.2*self.row_size), fl_int(i*(self.col_size+self.padding))),
-                                                     fl_int(self.row_size*0.8), fl_int(self.col_size)), polar=self.polar)
-                self.cbar_axes['ax_{}-{}'.format(i,j)] = plt.subplot(self.gs.new_subplotspec(
-                                                     (fl_int(j*(self.row_size+self.padding)), fl_int(i*(self.col_size+self.padding))),
-                                                     fl_int(self.row_size*0.1), fl_int(self.col_size)))
+                vert_position  = fl_int(j*(self.row_size+self.padding) + 0.2*self.row_size)
+                horiz_position = fl_int(i*(self.col_size+self.padding))
+                axis_row_size  = fl_int(self.row_size*0.8)
+                axis_col_size  = fl_int(self.col_size)
+                self.axes['ax_{}-{}'.format(i,j)] = plt.subplot(self.gs.new_subplotspec( ( vert_position, horiz_position ), axis_row_size, axis_col_size), polar=self.polar)
+
+                cbar_vert_position  = fl_int(j*(self.row_size+self.padding))
+                cbar_horiz_position = fl_int(i*(self.col_size+self.padding) + self.col_size*0.15)
+                cbar_row_size       = fl_int(self.row_size*0.1)
+                cbar_col_size       = fl_int(self.col_size*0.7)
+                self.cbar_axes['ax_{}-{}'.format(i,j)] = plt.subplot(self.gs.new_subplotspec( ( cbar_vert_position, cbar_horiz_position ), cbar_row_size, cbar_col_size))
+
     def full_row_ax(self, row_num):
         """ Creates a subplot and colorbar that fill a full row """
         for i in range(self.ncols):
             del self.axes['ax_{}-{}'.format(i, row_num)]
-            self.axes['ax_0-{}'.format(row_num)] = plt.subplot(self.gs.new_subplotspec(
-                                                (fl_int(row_num*(self.row_size+self.padding) + 0.2*self.row_size), 0),
-                                                fl_int(self.row_size*0.8), 1000), polar=self.polar)
-            self.cbar_axes['ax_0-{}'.format(row_num)] = plt.subplot(self.gs.new_subplotspec(
-                                                     (fl_int(row_num*(self.row_size+self.padding)), 0),
-                                                     fl_int(self.row_size*0.1), 1000))
+        self.axes['ax_0-{}'.format(row_num)]      = plt.subplot(self.gs.new_subplotspec( ( fl_int(row_num*(self.row_size+self.padding) + 0.2*self.row_size), 0 ), fl_int(self.row_size*0.8), 1000), polar=self.polar)
+        self.cbar_axes['ax_0-{}'.format(row_num)] = plt.subplot(self.gs.new_subplotspec( ( fl_int(row_num*(self.row_size+self.padding))                    , 0 ), fl_int(self.row_size*0.1), 1000))
 
     def full_col_ax(self, col_num):
         """ Creates a subplot and colorbar that fill a full column """
         for i in range(self.nrows):
             del self.axes['ax_{}-{}'.format(col_num, i)]
-        self.axes['ax_{}-0'.format(col_num)] = plt.subplot(self.gs.new_subplotspec(
-                                            (0, fl_int(col_num*(self.col_size+self.padding))),
-                                            1000, fl_int(self.col_size)), polar=self.polar)
-        self.cbar_axes['ax_{}-0'.format(col_num)] = plt.subplot(self.gs.new_subplotspec(
-                                                     (0, fl_int(col_num*(self.col_size+self.padding))),
-                                                     1000, fl_int(self.col_size)))
+        self.axes['ax_{}-0'.format(col_num)]      = plt.subplot(self.gs.new_subplotspec( (200, fl_int(col_num*(self.col_size+self.padding))), 800, fl_int(self.col_size)), polar=self.polar)
+        self.cbar_axes['ax_{}-0'.format(col_num)] = plt.subplot(self.gs.new_subplotspec( (0, fl_int(col_num*(self.col_size+self.padding))),   100, fl_int(self.col_size)))
 

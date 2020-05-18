@@ -15,8 +15,8 @@ Options:
     --n_files=<num_files>               Total number of files to plot
     --dpi=<dpi>                         Image pixel density [default: 200]
 
-    --col_inch=<in>                     Number of inches / column [default: 6]
-    --row_inch=<in>                     Number of inches / row [default: 3]
+    --col_inch=<in>                     Number of inches / column [default: 2]
+    --row_inch=<in>                     Number of inches / row [default: 2]
     --static_cbar                       If flagged, don't evolve the colorbar with time
 
     --fig_type=<fig_type>               Type of figure to plot
@@ -24,6 +24,7 @@ Options:
                                             2 - T (y = 0, near top, midplane)
                                         [default: 1]
 """
+import matplotlib
 from docopt import docopt
 args = docopt(__doc__)
 from logic.slices import SlicePlotter
@@ -45,8 +46,11 @@ if n_files is not None:
     n_files = int(n_files)
 
 # Create Plotter object, tell it which fields to plot
-plotter = SlicePlotter(root_dir, file_dir='slices', fig_name=fig_name, start_file=start_file, n_files=n_files)
-plotter_kwargs = { 'col_in' : int(args['--col_inch']), 'row_in' : int(args['--row_inch']) }
+plotter = SlicePlotter(root_dir, file_dir=data_dir, fig_name=fig_name, start_file=start_file, n_files=n_files)
+plotter_kwargs = { 'col_in' : float(args['--col_inch']), 'row_in' : float(args['--row_inch']), 'padding' : 75}
+
+
+matplotlib.rcParams.update({'font.size': 3*min((plotter_kwargs['col_in'], plotter_kwargs['row_in']))})
 
 if int(args['--fig_type']) == 1:
     # 2 rows, 3 columns.

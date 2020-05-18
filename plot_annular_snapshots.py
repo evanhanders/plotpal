@@ -15,7 +15,7 @@ Options:
     --n_files=<num_files>               Total number of files to plot
     --dpi=<dpi>                         Image pixel density [default: 200]
 
-    --col_inch=<in>                     Number of inches / column [default: 6]
+    --col_inch=<in>                     Number of inches / column [default: 3]
     --row_inch=<in>                     Number of inches / row [default: 3]
     --static_cbar                       If flagged, don't evolve the colorbar with time
 

@@ -171,9 +171,10 @@ class SlicePlotter(SingleFiletypePlotter):
                         cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
                         cb.solids.set_rasterized(True)
                         cb.set_ticks((vmin, vmax))
+                        caxs[k].tick_params(direction='in', pad=1)
                         cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
                         caxs[k].xaxis.set_ticks_position('bottom')
-                        caxs[k].text(0.5, 0.25, '{:s}'.format(tasks[k]), transform=caxs[k].transAxes)
+                        caxs[k].text(0.5, 0.5, '{:s}'.format(tasks[k]), transform=caxs[k].transAxes, va='center', ha='center')
 
                     plt.suptitle('t = {:.4e}'.format(times[j]))
                     self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, n+start_fig-1), dpi=dpi, bbox_inches='tight')
