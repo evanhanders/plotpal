@@ -25,7 +25,7 @@ Options:
 """
 from docopt import docopt
 args = docopt(__doc__)
-from logic.slices import SlicePlotter
+from plotpal.slices import SlicePlotter
 
 # Read in master output directory
 root_dir    = args['<root_dir>']

@@ -13,9 +13,9 @@ Options:
     --n_files=<num_files>               Number of files to plot [default: 100000]
     --dpi=<dpi>                         Image pixel density [default: 150]
 """
-import logging
-logger = logging.getLogger(__name__)
 from docopt import docopt
+args = docopt(__doc__)
+from plotpal.asymmetries import AsymmetryPlotter
 
 # Read in master output directory
 root_dir    = args['<root_dir>']

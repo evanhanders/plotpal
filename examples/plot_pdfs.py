@@ -18,9 +18,9 @@ Options:
                                             1 - T, enstrophy, enth_flux, w
                                         [default: 1]
 """
-import logging
-logger = logging.getLogger(__name__)
 from docopt import docopt
+args = docopt(__doc__)
+from plotpal.pdfs import PdfPlotter
 
 # Read in master output directory
 root_dirs   = args['<dirs>']

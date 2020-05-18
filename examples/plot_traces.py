@@ -13,7 +13,7 @@ Options:
 """
 from docopt import docopt
 args = docopt(__doc__)
-from logic.scalars import ScalarFigure, ScalarPlotter
+from plotpal.scalars import ScalarFigure, ScalarPlotter
 
 # Read in master output directory
 root_dir    = args['<root_dir>']

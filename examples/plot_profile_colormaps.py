@@ -22,7 +22,7 @@ Options:
 """
 from docopt import docopt
 args = docopt(__doc__)
-from logic.profiles import ProfilePlotter
+from plotpal.profiles import ProfilePlotter
 
 # Read in master output directory
 root_dir    = args['<root_dir>']
