@@ -1,12 +1,14 @@
 """
-Script for plotting colormaps of the evolution of 1D profiles of a dedalus simulation.  
-This script plots time evolution of the fields specified in 'fig_type'
+Script for plotting time-averaged 1D profiles vs. a basis of a dedalus simulation.  
+
+The profiles specified in the "--fig_type" flag are averaged over the number of time outputs specified in "--avg_writes"
 
 Usage:
     plot_avg_profiles.py <root_dir> [options]
 
 Options:
-    --fig_name=<fig_name>               Name of figure output directory & base name of saved figures [default: avg_profs]
+    --data_dir=<dir>                    Name of data handler directory [default: profiles]
+    --fig_name=<fig_name>               Name of figure output directory & base name of saved figures [default: avg_profiles]
     --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
     --n_files=<num_files>               Number of files to plot
     --dpi=<dpi>                         Image pixel density [default: 200]
@@ -22,29 +24,28 @@ Options:
 from docopt import docopt
 args = docopt(__doc__)
 from logic.profiles import ProfilePlotter
-import logging
-logger = logging.getLogger(__name__)
 
-
-n_files     = args['--n_files']
-if n_files is not None: n_files = int(n_files)
-start_file  = int(args['--start_file'])
-avg_writes = int(args['--avg_writes'])
-
+# Read in master output directory
 root_dir    = args['<root_dir>']
+data_dir    = args['--data_dir']
 if root_dir is None:
-    logger.error('No dedalus output dir specified, exiting')
+    print('No dedalus output dir specified, exiting')
     import sys
     sys.exit()
-fig_name   = args['--fig_name']
 
-plotter = ProfilePlotter(root_dir, file_dir='profiles', fig_name=fig_name, start_file=start_file, n_files=n_files)
+start_file  = int(args['--start_file'])
+avg_writes  = int(args['--avg_writes'])
+fig_name    = args['--fig_name']
+n_files     = args['--n_files']
+if n_files is not None: 
+    n_files = int(n_files)
 
+plotter = ProfilePlotter(root_dir, file_dir=data_dir, fig_name=fig_name, start_file=start_file, n_files=n_files)
 if int(args['--fig_type']) == 1:
-    plotter.add_profile('T', avg_writes)
-    plotter.add_profile('enth_flux', avg_writes)
+    plotter.add_profile('T',          avg_writes)
+    plotter.add_profile('enth_flux',  avg_writes)
     plotter.add_profile('kappa_flux', avg_writes)
-    plotter.add_profile('tot_flux', avg_writes)
+    plotter.add_profile('tot_flux',   avg_writes)
 
 plotter_kwargs = { 'col_in' : int(args['--col_inch']), 'row_in' : int(args['--row_inch']) }
 plotter.plot_avg_profiles(dpi=int(args['--dpi']), **plotter_kwargs)

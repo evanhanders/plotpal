@@ -100,8 +100,8 @@ class ColorbarPlotGrid(PlotGrid):
     """
     An extension of PlotGrid where each subplot axis also shares its space with a colorbar.
 
-    Public Methods:
-    ---------------
+    Overriden Public Methods:
+    -------------------------
     full_row_ax
     full_col_ax
 
