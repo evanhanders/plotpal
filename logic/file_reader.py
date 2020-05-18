@@ -15,6 +15,10 @@ class FileReader:
     """ 
     A general class for reading and interacting with Dedalus output data.
 
+    Public Methods:
+    ---------------
+    read_file 
+
     Attributes:
     -----------
     comm : mpi4py Comm
@@ -72,13 +76,13 @@ class FileReader:
         self._distribute_files(**kwargs)
 
 
-    def _distribute_files(self, distribution='one'):
+    def _distribute_files(self, distribution='single'):
         """
         Distribute files across MPI processes according to a given type of file distribution.
-        Currently, these types of file distributions are implemented:
 
-        'even'   : evenly distribute over all mpi processes
-        'single' : First process takes all file tasks
+        Currently, these types of file distributions are implemented:
+            1. 'even'   : evenly distribute over all mpi processes
+            2. 'single' : First process takes all file tasks
 
         Arguments:
         ----------
@@ -151,8 +155,7 @@ class FileReader:
 
 class SingleFiletypePlotter():
     """
-    An abstract class for plotters that only deal with a single directory of
-    Dedalus data
+    An abstract class for plotters that only deal with a single directory of Dedalus data
 
     Attributes:
     -----------
@@ -170,7 +173,7 @@ class SingleFiletypePlotter():
         """
         Initializes the profile plotter.
 
-        Attributes:
+        Arguments:
         -----------
         root_dir : string
             Root file directory of output files

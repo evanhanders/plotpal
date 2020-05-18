@@ -59,10 +59,19 @@ class AveragedProfile:
 
 class ProfilePlotter(SingleFiletypePlotter):
     """
-    A class for plotting 1D profiles of dedalus output. Profiles can be plotted
-    in two ways:
+    A class for plotting 1D profiles of dedalus output. 
+    
+    Profiles can be plotted in two ways:
         1. Colormesh plots of profile evolution over time
         2. Line plots of time-averaged profiles vs. the profile's dedalus basis
+
+    Public Methods:
+    ---------------
+    add_colormesh
+    add_profile
+    get_profiles
+    plot_colormeshes
+    plot_avg_profiles
 
     Attributes:
     -----------
@@ -76,7 +85,7 @@ class ProfilePlotter(SingleFiletypePlotter):
         """
         Initializes the profile plotter.
 
-        Attributes:
+        Arguments:
         -----------
         *args, **kwargs : Additional keyword arguments for super().__init__() 
         """

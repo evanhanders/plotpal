@@ -22,9 +22,14 @@ logger = logging.getLogger(__name__.split('.')[-1])
 class ScalarFigure(PlotGrid):
     """
     A simple extension of the PlotGrid class tailored specifically for scalar line traces.
+
     Scalar traces are put on panels, which are given integer indices.
     Panel 0 is the axis subplot to the upper left, and panel indices increase to the
     right, and downwards, like reading a book.
+
+    Public Methods:
+    ---------------
+    add_field
 
     Additional Attributes:
     ----------------------
@@ -71,6 +76,13 @@ class ScalarPlotter(SingleFiletypePlotter):
     """
     A class for plotting traces of scalar values from dedalus output.
 
+    Public Methods:
+    ---------------
+    load_figures
+    plot_figures
+    plot_convergence_figures
+
+
     Additional Attributes:
     ----------------------
     fields : list
@@ -83,7 +95,7 @@ class ScalarPlotter(SingleFiletypePlotter):
         """
         Initializes the scalar plotter.
 
-        Attributes:
+        Arguments:
         -----------
         *args, **kwargs : Additional keyword arguments for super().__init__() 
         """

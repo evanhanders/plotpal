@@ -25,13 +25,19 @@ logger = logging.getLogger(__name__.split('.')[-1])
 class PdfPlotter(SingleFiletypePlotter):
     """
     A class for plotting probability distributions of a dedalus output.
-    PDF plots are currently implemented for 2D slices and 3D volumes. When one axis is
-    represented by polynomials that exist on an uneven basis (e.g., Chebyshev),
-    that basis is evenly interpolated to avoid skewing of the distribution by
-    uneven grid sampling.
+
+    PDF plots are currently implemented for 2D slices and 3D volumes. 
+    When one axis is represented by polynomials that exist on an uneven basis (e.g., Chebyshev),
+    that basis is evenly interpolated to avoid skewing of the distribution by uneven grid sampling.
+
+    Public Methods:
+    ---------------
+    calculate_pdfs
+    plot_pdfs
+
 
     Additional Attributes:
-    -----------
+    ----------------------
     pdfs : OrderedDict
         Contains PDF data (x, y, dx)
     pdf_stats : OrderedDict
@@ -42,7 +48,7 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         Initializes the PDF plotter.
 
-        Attributes:
+        Arguments:
         -----------
         *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
@@ -67,7 +73,7 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         For 2D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
-        Attributes:
+        Arguments:
         ----------
         pdf_list : list
             list of strings of the Dedalus tasks to make PDFs of.
@@ -107,7 +113,7 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         For 3D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
-        Attributes:
+        Arguments:
         ----------
         pdf_list : list
             list of strings of the Dedalus tasks to make PDFs of.

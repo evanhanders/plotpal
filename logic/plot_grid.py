@@ -11,13 +11,20 @@ def fl_int(num):
 
 class PlotGrid:
     """
+    A wrapper for a matplotlib figure with a specified number of rows and columns.
+
     Sets up an even plot grid with a given number of rows and columns.
     Axes objects are stored in self.axes, with keys like 'ax_0-1', where
     the numbers refer to the column, then row of the plot (so they go
     left to right, then top to bottom)
 
-    Attributes:
-    -----------
+    Public Methods:
+    ---------------
+    full_row_ax
+    full_col_ax
+
+    Public Attributes:
+    -----------------
     axes : OrderedDict
         Contains matplotlib axes objects for plotting
     fig : matplotlib figure
@@ -92,6 +99,11 @@ class PlotGrid:
 class ColorbarPlotGrid(PlotGrid):
     """
     An extension of PlotGrid where each subplot axis also shares its space with a colorbar.
+
+    Public Methods:
+    ---------------
+    full_row_ax
+    full_col_ax
 
     Additional Attributes:
     ----------------------

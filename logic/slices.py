@@ -57,6 +57,12 @@ class SlicePlotter(SingleFiletypePlotter):
     """
     A class for plotting colormeshes of 2D slices of dedalus data.
 
+    Public Methods:
+    ---------------
+    setup_grid
+    add_colormesh
+    plot_colormeshes
+
     Attributes:
     -----------
     colormeshes : list
@@ -67,7 +73,7 @@ class SlicePlotter(SingleFiletypePlotter):
         """
         Initializes the slice plotter.
 
-        Attributes:
+        Arguments:
         -----------
         *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
@@ -179,6 +185,12 @@ class MultiRunSlicePlotter():
     """
     Like the SlicePlotter class, but for comparing multiple runs simultaneously in
     a given colormap.
+
+    Public Methods:
+    ---------------
+    setup_grid
+    add_colormesh
+    plot_colormeshes
 
     Attributes:
     -----------

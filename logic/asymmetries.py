@@ -25,13 +25,30 @@ logger = logging.getLogger(__name__.split('.')[-1])
 class AsymmetryPlotter(SingleFiletypePlotter):
     """
     A class for plotting 1D profiles that help understand asymmetries.
+
+    1D profiles are made from 2D slices.
+    For each slice, 2 profiles are made: one where a provided "mask" is positive,
+    the other where the provided mask is negative.
+
+    Example: Produces a profile of Temperature vs. height, 
+    but creates one profile where velocity is positive, and another where it is negative.
+
+    Public Methods:
+    ---------------
+    calculate_profiles
+    plot_profiles
+
+    Attributes:
+    -----------
+    profs   :   OrderedDict
+        A dictionary of the produced asymmetric profiles and the masks used to make them.
     """
 
     def __init__(self, *args, **kwargs):
         """
         Initializes the PDF plotter.
 
-        Attributes:
+        Arguments:
         -----------
         *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
@@ -39,10 +56,14 @@ class AsymmetryPlotter(SingleFiletypePlotter):
         self.profs = OrderedDict()
         self.basis_k = None
 
-
     def calculate_profiles(self, prof_list, mask_list, avg_axis=0, basis='z', **kwargs):
         """
-        Calculate probability distribution functions of the specified tasks.
+        Calculate asymmetry profiles for specified task.
+
+        Given a 2D slice to make a profile out of (p), as well as a 2D slice for masking that profile (m), create two profiles:
+            1. p where m >= 0
+            2. p where m <  0
+        Then average that 2D slice over the basis that isn't specified
 
         Arguments:
         ----------
@@ -50,7 +71,12 @@ class AsymmetryPlotter(SingleFiletypePlotter):
             The names of the tasks to create profiles of
         mask_list : list
             The names of tasks to use as masks
-        **kwargs : additional keyword arguments for the self._get_interpolated_slices() function.
+        avg_axis : int
+            The axis over which to take the average to go from 2D -> 1D profile
+        basis : string
+            The Dedalus basis which the profile varies against
+        **kwargs : dict
+            additional keyword arguments for the self._get_interpolated_slices() function.
         """
         with self.my_sync:
             if self.idle : return
@@ -70,8 +96,8 @@ class AsymmetryPlotter(SingleFiletypePlotter):
                         local_pos_prof_sum = np.zeros(len(bs[basis]))
                         local_neg_prof_sum = np.zeros(len(bs[basis]))
                     for j in range(len(times)):
-                        masked_pos = np.ma.masked_where(tsk[m][j,:] < 0, tsk[k][j,:])
-                        masked_neg = np.ma.masked_where(tsk[m][j,:] > 0, tsk[k][j,:])
+                        masked_pos = np.ma.masked_where(tsk[m][j,:] <  0, tsk[k][j,:])
+                        masked_neg = np.ma.masked_where(tsk[m][j,:] >= 0, tsk[k][j,:])
                         local_pos_prof_sum += masked_pos.mean(axis=avg_axis)
                         local_neg_prof_sum += masked_neg.mean(axis=avg_axis)
                         N += 1
@@ -90,15 +116,16 @@ class AsymmetryPlotter(SingleFiletypePlotter):
                     self.basis_k = basis
 
 
-    def plot_profs(self, dpi=150, **kwargs):
+    def plot_profiles(self, dpi=150, **kwargs):
         """
-        Plot the profiles and save to file
+        Plot the asymmetric profiles and save to file
 
         Arguments:
         ----------
         dpi : int, optional
             Pixel density of output image.
-        **kwargs : additional keyword arguments for PlotGrid()
+        **kwargs : dict
+            additional keyword arguments for PlotGrid()
         """
         with self.my_sync:
             if self.reader.comm.rank != 0: return
@@ -123,10 +150,12 @@ class AsymmetryPlotter(SingleFiletypePlotter):
 
     def _save_profs(self):
         """ 
-        Save profiles to file. For each PDF, e.g., 'entropy' and 'w', the file will have a dataset with:
-            pos_mask
-            neg_mask
-        And also the basis.
+        Save profiles to file. 
+        
+        For each PDF, e.g., 'entropy' and 'w', the file will have a dataset with:
+            1. pos_mask (the mask for the positive profile)
+            2. neg_mask (the mask for the negative profile)
+            3. the basis (e.g., 'z')
         """
         if self.reader.comm.rank == 0:
             with h5py.File('{:s}/asymmetry_data.h5'.format(self.out_dir), 'w') as f:
