@@ -4,7 +4,7 @@ WIKIPATH=../../plotpal.wiki/
 STARTDIR=$PWD
 
 cd $PLOTPALPATH
-pydoc-markdown -p plotpal --render-toc > $STARTDIR/full_plotpal.md
+pydoc-markdown -p plotpal > $STARTDIR/full_plotpal.md
 
 cd $STARTDIR
 python3 split_wiki.py $WIKIPATH
