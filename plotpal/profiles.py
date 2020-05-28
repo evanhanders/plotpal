@@ -156,9 +156,9 @@ class ProfilePlotter(SingleFiletypePlotter):
                     if i == 0:
                         times[t_indices] = my_times[j]
                 self.dist_comm.Allreduce(profiles[t], buff, op=MPI.SUM)
-                self.dist_comm.Allreduce(times, times_buff, op=MPI.SUM)
                 profiles[t][:,:] = buff[:,:]
-                times[:] = times_buff
+            self.dist_comm.Allreduce(times, times_buff, op=MPI.SUM)
+            times[:] = times_buff
             return profiles, bs, times
                 
     def plot_colormeshes(self, dpi=600, **kwargs):
