@@ -21,16 +21,15 @@ class ProfileColormesh:
     """
     A struct containing information about a profile colormesh plot
 
-    Attributes:
-    -----------
-    field : string
-        The profile task name
-    basis : string
-        The dedalus basis name that the profile spans
-    cmap  : string
-        The matplotlib colormap to plot the colormesh with
-    pos_def : bool
-        If True, profile is positive definite and colormap should span from max/min to zero.
+    # Attributes
+        field (string) :
+            The profile task name
+        basis (string) :
+            The dedalus basis name that the profile spans
+        cmap  (string) :
+            The matplotlib colormap to plot the colormesh with
+        pos_def (bool) :
+            If True, profile is positive definite and colormap should span from max/min to zero.
     """
     def __init__(self, field, basis='z', cmap='RdBu_r', pos_def=False):
         self.field = field
@@ -42,14 +41,13 @@ class AveragedProfile:
     """
     A struct containing information about an averaged profile line plot 
 
-    Attributes:
-    -----------
-    field : string
-        The profile task name
-    avg_writes : int
-        The number of output writes to average the profile over
-    basis : string
-        The dedalus basis name that the profile spans
+    # Attributes
+        field (string) :
+            The profile task name
+        avg_writes (int) :
+            The number of output writes to average the profile over
+        basis (string) :
+            The dedalus basis name that the profile spans
     """
     def __init__(self, field, avg_writes, basis='z'):
         self.field = field
@@ -64,29 +62,27 @@ class ProfilePlotter(SingleFiletypePlotter):
         1. Colormesh plots of profile evolution over time
         2. Line plots of time-averaged profiles vs. the profile's dedalus basis
 
-    Public Methods:
-    ---------------
-    add_colormesh
-    add_profile
-    get_profiles
-    plot_colormeshes
-    plot_avg_profiles
+    # Public Methods
+    - __init__()
+    - add_colormesh()
+    - add_profile()
+    - get_profiles()
+    - plot_colormeshes()
+    - plot_avg_profiles()
 
-    Attributes:
-    -----------
-    avg_profs : list
-        A list of AveragedProfiles objects
-    colormeshes : list
-        A list of ProfileColormesh objects
+    # Attributes
+        avg_profs (list) :
+            A list of AveragedProfiles objects
+        colormeshes (list) :
+            A list of ProfileColormesh objects
     """
 
     def __init__(self, *args, **kwargs):
         """
         Initializes the profile plotter.
 
-        Arguments:
-        -----------
-        *args, **kwargs : Additional keyword arguments for super().__init__() 
+        # Arguments
+            *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
         super(ProfilePlotter, self).__init__(*args, distribution='even', **kwargs)
         self.colormeshes = []
@@ -106,20 +102,18 @@ class ProfilePlotter(SingleFiletypePlotter):
         broadcast them across the processor mesh so that all processes have
         the full profile data vs. time.
 
-        Arguments:
-        ----------
-        tasks : list
-            list of dedalus task names to get
-        bases : list
-            list of dedalus bases to get
+        # Arguments
+            tasks (list) :
+                list of dedalus task names to get
+            bases (list) :
+                list of dedalus bases to get
 
-        Returns:
-        --------
-        profiles : OrderedDict
+        # Outputs 
+        - OrderedDict[NumPy arrays] :
             Contains NumPy arrays (of size num_writes x len(basis)) of all desired profiles
-        bs : OrderedDict
+        - OrderedDict[NumPy arrays] :
             Contains NumPy arrays containing requested basis grids.
-        times : NumPy array
+        - NumPy array[Float] :
             Contains the sim_time of each profile write.
         """
         with self.my_sync:
@@ -174,11 +168,10 @@ class ProfilePlotter(SingleFiletypePlotter):
         """
         Plot all tracked profile colormesh plots
 
-        Arguments:
-        ----------
-        dpi : int
-            Image pixel density
-        **kwargs : Additional keyword arguments for ColorbarPlotGrid() 
+        # Arguments
+            dpi (int) :
+                Image pixel density
+            **kwargs : Additional keyword arguments for ColorbarPlotGrid() 
         """
         tasks = []
         bases = []
@@ -233,11 +226,10 @@ class ProfilePlotter(SingleFiletypePlotter):
         """
         Time-average and plot all specified tracked profiles.
 
-        Arguments:
-        ----------
-        dpi : int
-            Image pixel density
-        **kwargs : Additional keyword arguments for PlotGrid() 
+        # Arguments
+            dpi (int) :
+                Image pixel density
+            **kwargs : Additional keyword arguments for PlotGrid() 
         """
 
         tasks = []
@@ -292,14 +284,13 @@ class ProfilePlotter(SingleFiletypePlotter):
         """
         Saves post-processed, time-averaged profiles out to a file 
 
-        Arguments:
-        ----------
-        bases : OrderedDict
-            NumPy arrays of dedalus basis grid points
-        profiles : OrderedDict
-            Lists of time-averaged profiles
-        times : OrderedDict
-            Lists of tuples of start and end times of averaging intervals
+        # Arguments
+            bases (OrderedDict) :
+                NumPy arrays of dedalus basis grid points
+            profiles (OrderedDict) :
+                Lists of time-averaged profiles
+            times (OrderedDict) :
+                Lists of tuples of start and end times of averaging intervals
         """
         with h5py.File('{:s}/averaged_{:s}.h5'.format(self.out_dir, self.fig_name), 'w') as f:
             for k, base in bases.items():

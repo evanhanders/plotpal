@@ -18,42 +18,40 @@ class PlotGrid:
     the numbers refer to the column, then row of the plot (so they go
     left to right, then top to bottom)
 
-    Public Methods:
-    ---------------
-    full_row_ax
-    full_col_ax
+    # Public Methods
+    - __init__()
+    - full_row_ax()
+    - full_col_ax()
 
-    Public Attributes:
-    -----------------
-    axes : OrderedDict
-        Contains matplotlib axes objects for plotting
-    fig : matplotlib figure
-        The figure object on which the grid is split up
-    gs : matplotlib Gridspec object
-        Object used for splitting up the grid
-    col_size, row_size : ints
-        The size of columns, and rows, in grid units
-    nrows, ncols : ints
-        Number of rows and columns, respectively, in the image
-    padding : int
-        spacing to leave between rows and columns 
-        (padding = 10 means 1% of the image space horizontally and vertically should be blank between rows/columns)
-    width, height : floats
-        The width and height of the figure in inches
+    # Attributes
+        axes (OrderedDict) :
+            Contains matplotlib axes objects for plotting
+        fig (matplotlib Figure) :
+            The figure object on which the grid is split up
+        gs (matplotlib Gridspec object) :
+            Object used for splitting up the grid
+        col_size, row_size (ints) :
+            The size of columns, and rows, in grid units
+        nrows, ncols (ints) :
+            Number of rows and columns, respectively, in the image
+        padding (int) :
+            spacing to leave between rows and columns 
+            (padding = 10 means 1% of the image space horizontally and vertically should be blank between rows/columns)
+        width, height (floats) :
+            The width and height of the figure in inches
     """
 
     def __init__(self, nrows, ncols, padding=50, col_in=3, row_in=3, polar=False):
         """
         Initialize and create the plot grid.
 
-        Arguments:
-        ----------
-        nrows, ncols : ints
-            As in class-level docstring
-        padding : int
-            As in class-level docstring
-        col_in, row_in : floats
-            The number of inches taken up by each column's width or row's height.
+        # Arguments
+            nrows, ncols (ints) :
+                As in class-level docstring
+            padding (int) :
+                As in class-level docstring
+            col_in, row_in (floats) :
+                The number of inches taken up by each column's width or row's height.
         """
         self.nrows     = nrows
         self.ncols     = ncols
@@ -100,15 +98,13 @@ class ColorbarPlotGrid(PlotGrid):
     """
     An extension of PlotGrid where each subplot axis also shares its space with a colorbar.
 
-    Overriden Public Methods:
-    -------------------------
-    full_row_ax
-    full_col_ax
+    # Overriden Public Methods
+    - full_row_ax
+    - full_col_ax
 
-    Additional Attributes:
-    ----------------------
-    cbar_axes : OrderedDict
-        Contains matplotlib axes objects which should be filled with colorbars.
+    # Additional Attributes
+        cbar_axes (OrderedDict) :
+            Contains matplotlib axes objects which should be filled with colorbars.
     """
     
     def __init__(self, *args, **kwargs):

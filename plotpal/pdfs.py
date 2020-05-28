@@ -29,27 +29,24 @@ class PdfPlotter(SingleFiletypePlotter):
     When one axis is represented by polynomials that exist on an uneven basis (e.g., Chebyshev),
     that basis is evenly interpolated to avoid skewing of the distribution by uneven grid sampling.
 
-    Public Methods:
-    ---------------
-    calculate_pdfs
-    plot_pdfs
+    # Public Methods
+    - __init__()
+    - calculate_pdfs()
+    - plot_pdfs()
 
-
-    Additional Attributes:
-    ----------------------
-    pdfs : OrderedDict
-        Contains PDF data (x, y, dx)
-    pdf_stats : OrderedDict
-        Contains scalar stats for the PDFS (mean, stdev, skew, kurtosis)
+    # Additional Attributes
+        pdfs (OrderedDict) :
+            Contains PDF data (x, y, dx)
+        pdf_stats (OrderedDict) :
+            Contains scalar stats for the PDFS (mean, stdev, skew, kurtosis)
     """
 
     def __init__(self, *args, **kwargs):
         """
         Initializes the PDF plotter.
 
-        Arguments:
-        -----------
-        *args, **kwargs : Additional keyword arguments for super().__init__() 
+        # Arguments
+            *args, **kwargs : Additional keyword arguments for super().__init__()  (see file_reader.py)
         """
         super(PdfPlotter, self).__init__(*args, distribution='even', **kwargs)
         self.pdfs = OrderedDict()
@@ -72,14 +69,13 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         For 2D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
-        Arguments:
-        ----------
-        pdf_list : list
-            list of strings of the Dedalus tasks to make PDFs of.
-        bases : list, optional
-            The names of the Dedalus bases on which the data exists
-        uneven_basis : string, optional
-            The basis on which the grid has uneven spacing.
+        # Arguments
+            pdf_list (list) :
+                list of strings of the Dedalus tasks to make PDFs of.
+            bases (list, optional) :
+                The names of the Dedalus bases on which the data exists
+            uneven_basis (string, optional) :
+                The basis on which the grid has uneven spacing.
         """
         #Read data
         bs, tsk, writenum, times = self.reader.read_file(file_name, bases=bases, tasks=pdf_list)
@@ -112,14 +108,13 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         For 3D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
-        Arguments:
-        ----------
-        pdf_list : list
-            list of strings of the Dedalus tasks to make PDFs of.
-        bases : list, optional
-            The names of the Dedalus bases on which the data exists
-        uneven_basis : string, optional
-            The basis on which the grid has uneven spacing.
+        # Arguments
+            pdf_list (list) :
+                list of strings of the Dedalus tasks to make PDFs of.
+            bases (list, optional) :
+                The names of the Dedalus bases on which the data exists
+            uneven_basis (string, optional) :
+                The basis on which the grid has uneven spacing.
         """
         #Read data
         bs, tsk, writenum, times = self.reader.read_file(file_name, bases=bases, tasks=pdf_list)
@@ -213,13 +208,12 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         Calculate probability distribution functions of the specified tasks.
 
-        Arguments:
-        ----------
-        pdf_list : list
-            The names of the tasks to create PDFs of
-        bins : int, optional
-            The number of bins the PDF should have
-        **kwargs : additional keyword arguments for the self._get_interpolated_slices() function.
+        # Arguments
+            pdf_list (list) :
+                The names of the tasks to create PDFs of
+            bins (int, optional) :
+                The number of bins the PDF should have
+            **kwargs : additional keyword arguments for the self._get_interpolated_slices() function.
         """
         bounds = self._get_bounds(pdf_list)
 
@@ -265,11 +259,10 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         Plot the probability distribution functions and save them to file.
 
-        Arguments:
-        ----------
-        dpi : int, optional
-            Pixel density of output image.
-        **kwargs : additional keyword arguments for PlotGrid()
+        # Arguments
+            dpi (int, optional) :
+                Pixel density of output image.
+            **kwargs : additional keyword arguments for PlotGrid()
         """
         with self.my_sync:
             if self.reader.comm.rank != 0: return

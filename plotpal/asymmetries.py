@@ -29,17 +29,16 @@ class AsymmetryPlotter(SingleFiletypePlotter):
     For each slice, 2 profiles are made: one where a provided "mask" is positive,
     the other where the provided mask is negative.
 
-    Example: Produces a profile of Temperature vs. height, 
+    Example --  Produces a profile of Temperature vs. height, 
     but creates one profile where velocity is positive, and another where it is negative.
 
-    Public Methods:
-    ---------------
-    calculate_profiles
-    plot_profiles
+    # Public Methods
+    - __init__()
+    - calculate_profiles()
+    - plot_profiles()
 
-    Attributes:
-    -----------
-    profs   :   OrderedDict
+    # Attributes
+        profs   (OrderedDict) :
         A dictionary of the produced asymmetric profiles and the masks used to make them.
     """
 
@@ -47,9 +46,8 @@ class AsymmetryPlotter(SingleFiletypePlotter):
         """
         Initializes the PDF plotter.
 
-        Arguments:
-        -----------
-        *args, **kwargs : Additional keyword arguments for super().__init__() 
+        # Arguments
+            *args, **kwargs : Additional keyword arguments for super().__init__() (see file_reader.py)
         """
         super(AsymmetryPlotter, self).__init__(*args, distribution='even', **kwargs)
         self.profs = OrderedDict()
@@ -64,18 +62,17 @@ class AsymmetryPlotter(SingleFiletypePlotter):
             2. p where m <  0
         Then average that 2D slice over the basis that isn't specified
 
-        Arguments:
-        ----------
-        prof_list : list
-            The names of the tasks to create profiles of
-        mask_list : list
-            The names of tasks to use as masks
-        avg_axis : int
-            The axis over which to take the average to go from 2D -> 1D profile
-        basis : string
-            The Dedalus basis which the profile varies against
-        **kwargs : dict
-            additional keyword arguments for the self._get_interpolated_slices() function.
+        # Arguments
+            prof_list (list) :
+                The names of the tasks to create profiles of
+            mask_list (list) :
+                The names of tasks to use as masks
+            avg_axis (int) :
+                The axis over which to take the average to go from 2D -> 1D profile
+            basis (string) :
+                The Dedalus basis which the profile varies against
+            **kwargs (dict) :
+                additional keyword arguments for the self._get_interpolated_slices() function.
         """
         with self.my_sync:
             if self.idle : return
@@ -119,12 +116,11 @@ class AsymmetryPlotter(SingleFiletypePlotter):
         """
         Plot the asymmetric profiles and save to file
 
-        Arguments:
-        ----------
-        dpi : int, optional
-            Pixel density of output image.
-        **kwargs : dict
-            additional keyword arguments for PlotGrid()
+        # Arguments
+            dpi (int, optional) :
+                Pixel density of output image.
+            **kwargs (dict) :
+                additional keyword arguments for PlotGrid()
         """
         with self.my_sync:
             if self.reader.comm.rank != 0: return

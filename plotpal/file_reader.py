@@ -15,45 +15,44 @@ class FileReader:
     """ 
     A general class for reading and interacting with Dedalus output data.
 
-    Public Methods:
-    ---------------
-    read_file 
+    # Public Methods
+    - __init__()
+    - read_file()
 
-    Attributes:
-    -----------
-    comm : mpi4py Comm
-        The MPI communicator to use for parallel post-processing distribution
-    distribution_comms : OrderedDict
-        subdivided communicators based on desired processor distribution, split by sub_dirs
-    file_lists : OrderedDict
-        Contains lists of string paths to all files being processed for each dir in sub_dirs
-    idle : OrderedDict
-        A dict of bools. True if the local processor is not responsible for any files
-    local_file_lists : OrderedDict
-        lists of string paths to output files that this processor is responsible for reading, split by sub_dirs
-    run_dir : str
-        Path to root dedalus directory
-    sub_dirs : list
-        List of strings of subdirectories in run_dir to consider files in
+    # Attributes
+        comm (mpi4py Comm) :
+            The MPI communicator to use for parallel post-processing distribution
+        distribution_comms (OrderedDict) :
+            subdivided communicators based on desired processor distribution, split by sub_dirs
+        file_lists (OrderedDict) :
+            Contains lists of string paths to all files being processed for each dir in sub_dirs
+        idle (OrderedDict) :
+            A dict of bools. True if the local processor is not responsible for any files
+        local_file_lists (OrderedDict) :
+            lists of string paths to output files that this processor is responsible for reading, split by sub_dirs
+        run_dir (str) :
+            Path to root dedalus directory
+        sub_dirs (list) :
+            List of strings of subdirectories in run_dir to consider files in
     """
 
     def __init__(self, run_dir, sub_dirs=['slices',], num_files=[None,], start_file=1, comm=MPI.COMM_WORLD, **kwargs):
         """
         Initializes the file reader.
 
-        Arguments:
-        ----------
-        run_dir : string
+        # Arguments
+        run_dir (str) :
             As defined in class-level docstring
-        sub_dirs : list, optional
+        sub_dirs (list, optional) :
             As defined in class-level docstring
-        num_files : list, optional
+        num_files (list, optional) :
             Number of files to read in each subdirectory. If None, read them all.
-        start_file : integer, optional 
+        start_file (int, optional) :
             File number to start reading from (1 by default)
-        comm : mpi4py Comm, optional
+        comm (mpi4py Comm, optional) :
             As defined in class-level docstring
-        **kwargs : Additional keyword arguments for the self._distribute_files() function.
+        **kwargs (dict) : 
+            Additional keyword arguments for the self._distribute_files() function.
         """
         self.run_dir    = os.path.expanduser(run_dir)
         self.sub_dirs   = sub_dirs
@@ -84,10 +83,9 @@ class FileReader:
             1. 'even'   : evenly distribute over all mpi processes
             2. 'single' : First process takes all file tasks
 
-        Arguments:
-        ----------
-        distribution : string, optional
-            Type of MPI file distribution
+        # Arguments
+            distribution (string, optional) : 
+                Type of MPI file distribution
         """
         for k, files in self.file_lists.items():
             self.idle[k] = False
@@ -119,28 +117,26 @@ class FileReader:
 
     def read_file(self, file_name, bases=[], tasks=[]):
         """ 
-        Opens a dedalus file and reads out the specific bases and tasks.
-        Additionally reads the simulation time and write number of each write.
+        Opens a dedalus file and reads out the specific bases, tasks, write numbers, and times.
 
-        Arguments:
-        ----------
-        file_name : str
+        # Arguments
+        file_name (str) : 
             string path to the file being opened
-        bases : list, optional
+        bases (list, optional) : 
             The names of the bases to pull from the file, e.g., 'x', 'z'
-        tasks : list, optional
+        tasks (list, optional) : 
             The output tasks to pull from the file, e.g., 'vorticity', 'entropy'
 
-        Outputs:
-        --------
-        out_bases : OrderedDict
+        # Outputs 
+        - OrderedDict (NumPy Array) : 
             The desired bases. Dictionary keys are the elements of input list 'bases'
-        out_tasks : OrderedDict
+        - OrderedDict (NumPy Array) : 
             The desired tasks. Dictionary keys are the elements of input list 'tasks'
-        out_write_num : NumPy array
+        - NumPy Array (Float): 
             The write number of each write in the file
-        out_sim_time : NumPy array
+        - NumPy Array (Float) : 
             The simulation time of each write in the file
+            
         """
         out_bases = OrderedDict()
         out_tasks = OrderedDict()
@@ -157,33 +153,32 @@ class SingleFiletypePlotter():
     """
     An abstract class for plotters that only deal with a single directory of Dedalus data
 
-    Attributes:
-    -----------
-    fig_name : string
-        Base name of output figures
-    my_sync : Sync
-        Keeps processes synchronized in the code even when some are idle
-    out_dir : string
-        Path to location where pdf output files are saved
-    reader : FileReader
-        A file reader for interfacing with Dedalus files
+    # Attributes
+        fig_name (str) : 
+            Base name of output figures
+        my_sync (Sync) : 
+            Keeps processes synchronized in the code even when some are idle
+        out_dir (str) : 
+            Path to location where pdf output files are saved
+        reader (FileReader) :  
+            A file reader for interfacing with Dedalus files
     """
 
     def __init__(self, root_dir, file_dir, fig_name, n_files=None, **kwargs):
         """
         Initializes the profile plotter.
 
-        Arguments:
-        -----------
-        root_dir : string
-            Root file directory of output files
-        file_dir : string
-            subdirectory of root_dir where the data to make PDFs is contained
-        fig_name : string
-            As in class-level docstring
-        n_files  : int, optional
-            Number of files to process. If None, all of them.
-        **kwargs : Additional keyword arguments for FileReader()
+        # Arguments
+            root_dir (str) : 
+                Root file directory of output files
+            file_dir (str) : 
+                subdirectory of root_dir where the data to make PDFs is contained
+            fig_name (str) : 
+                As in class-level docstring
+            n_files  (int, optional) :
+                Number of files to process. If None, all of them.
+            kwargs (dict) : 
+                Additional keyword arguments for FileReader()
         """
         self.reader = FileReader(root_dir, sub_dirs=[file_dir,], num_files=[n_files,], **kwargs)
         self.fig_name = fig_name

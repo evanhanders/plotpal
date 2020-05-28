@@ -26,28 +26,27 @@ class ScalarFigure(PlotGrid):
     Panel 0 is the axis subplot to the upper left, and panel indices increase to the
     right, and downwards, like reading a book.
 
-    Public Methods:
-    ---------------
-    add_field
+    # Public Methods
+    - __init__()
+    - add_field()
 
-    Additional Attributes:
-    ----------------------
-    panels : list
-        a list of ordered keys to the plot grid's axes dictionary
-    panel_fields : list
-        a list of lists. Each panel has a list of strings that are displayed on that panel.
-    fig_name : string
-        an informative string that says what this figure shows
+    # Attributes
+        panels (list) :
+            a list of ordered keys to the plot grid's axes dictionary
+        panel_fields (list) :
+            a list of lists. Each panel has a list of strings that are displayed on that panel.
+        fig_name (string) :
+            an informative string that says what this figure shows
     """
+
     def __init__(self, *args, fig_name=None, **kwargs):
         """
         Initialize the object
 
-        Arguments
-        ---------
-        fig_name : string
-            As described in the class docstring
-        *args, **kwargs : additional args and keyword arguments for the parent class
+        # Arguments
+            fig_name (string) :
+                As described in the class docstring
+            *args, **kwargs : additional args and keyword arguments for the parent class
         """
         super(ScalarFigure, self).__init__(*args, **kwargs)
         self.panels = []
@@ -62,14 +61,13 @@ class ScalarFigure(PlotGrid):
         """
         Add a field to a specified panel
 
-        Arguments:
-        ----------
-        panel : int
-            The panel index to add this field to
-        field : string
-            Name of dedalus task to plot on this panel
-        log : bool, optional
-            If True, log-scale the y-axis of the plot
+        # Arguments
+            panel (int) :
+                The panel index to add this field to
+            field (str) :
+                Name of dedalus task to plot on this panel
+            log (bool, optional) :
+                If True, log-scale the y-axis of the plot
         """
         self.panel_fields[panel].append((field, log))
 
@@ -77,28 +75,26 @@ class ScalarPlotter(SingleFiletypePlotter):
     """
     A class for plotting traces of scalar values from dedalus output.
 
-    Public Methods:
-    ---------------
-    load_figures
-    plot_figures
-    plot_convergence_figures
+    # Methods
+    - __init__()
+    - load_figures()
+    - plot_figures()
+    - plot_convergence_figures()
 
 
-    Additional Attributes:
-    ----------------------
-    fields : list
-       Names of dedalus tasks to pull from file 
-    trace_data : OrderedDict
-        Contains NumPy arrays of scalar traces from files
+    # Attributes
+        fields (list) :
+           Names of dedalus tasks to pull from file 
+        trace_data (OrderedDict) :
+            Contains NumPy arrays of scalar traces from files
     """
 
     def __init__(self, *args, **kwargs):
         """
         Initializes the scalar plotter.
 
-        Arguments:
-        -----------
-        *args, **kwargs : Additional keyword arguments for super().__init__() 
+        # Arguments
+            *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
         super(ScalarPlotter, self).__init__(*args, distribution='single', **kwargs)
         self.fields = []
@@ -109,10 +105,9 @@ class ScalarPlotter(SingleFiletypePlotter):
         Loads ScalarFigures into the object, and parses them to see which 
         fields must be read from file.
 
-        Arguments:
-        ----------
-        fig_list : list
-            The ScalarFigure objects to be plotted.
+        # Arguments
+            fig_list (list) : 
+                The ScalarFigure objects to be plotted.
         """
         self.figures = fig_list
         for fig in self.figures:
@@ -154,10 +149,9 @@ class ScalarPlotter(SingleFiletypePlotter):
         """ 
         Plot scalar traces vs. time
 
-        Arguments
-        ---------
-        dpi : int
-            image pixel density
+        # Arguments
+            dpi (int) :
+                image pixel density
         """
         with self.my_sync:
             self._read_fields()
@@ -193,10 +187,9 @@ class ScalarPlotter(SingleFiletypePlotter):
 
         where final_value is the mean value of the last 10% of the trace data
 
-        Arguments
-        ---------
-        dpi : int
-            image pixel density
+        # Arguments
+            dpi (int)
+                image pixel density
         """
 
         with self.my_sync:

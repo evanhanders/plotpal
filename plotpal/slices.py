@@ -23,22 +23,21 @@ class Colormesh:
     """
     A struct containing information about a slice colormesh plot
 
-    Attributes:
-    -----------
-    field : string
-        The profile task name
-    x_basis, y_basis : strings
-        The dedalus basis names that the profile spans in the x- and y- direction of the plot
-    remove_mean : bool
-        If True, remove the mean value of the profile at each time
-    remove_x_mean : bool
-        If True, remove the mean value over the axis plotted in the x- direction
-    remove_y_mean : bool
-        If True, remove the mean value over the axis plotted in the y- direction
-    cmap  : string
-        The matplotlib colormap to plot the colormesh with
-    pos_def : bool
-        If True, profile is positive definite and colormap should span from max/min to zero.
+    # Attributes
+        field (str) :
+            The profile task name
+        x_basis, y_basis (strs) :
+            The dedalus basis names that the profile spans in the x- and y- direction of the plot
+        remove_mean (bool) :
+            If True, remove the mean value of the profile at each time
+        remove_x_mean (bool) :
+            If True, remove the mean value over the axis plotted in the x- direction
+        remove_y_mean (bool) :
+            If True, remove the mean value over the axis plotted in the y- direction
+        cmap  (str) :
+            The matplotlib colormap to plot the colormesh with
+        pos_def (bool) :
+            If True, profile is positive definite and colormap should span from max/min to zero.
     """
 
     def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False):
@@ -56,25 +55,23 @@ class SlicePlotter(SingleFiletypePlotter):
     """
     A class for plotting colormeshes of 2D slices of dedalus data.
 
-    Public Methods:
-    ---------------
-    setup_grid
-    add_colormesh
-    plot_colormeshes
+    # Public Methods
+    - __init__()
+    - setup_grid()
+    - add_colormesh()
+    - plot_colormeshes()
 
-    Attributes:
-    -----------
-    colormeshes : list
-        A list of Colormesh objects
+    # Attributes
+        colormeshes (list) :
+            A list of Colormesh objects
     """
 
     def __init__(self, *args, **kwargs):
         """
         Initializes the slice plotter.
 
-        Arguments:
-        -----------
-        *args, **kwargs : Additional keyword arguments for super().__init__() 
+        # Arguments
+            *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
         super(SlicePlotter, self).__init__(*args, distribution='even', **kwargs)
         self.colormeshes = []
@@ -102,12 +99,11 @@ class SlicePlotter(SingleFiletypePlotter):
         """
         Plot figures of the 2D dedalus data slices at each timestep.
 
-        Arguments:
-        ----------
-        start_fig : int
-            The number in the filename for the first write.
-        dpi : int
-            The pixel density of the output image
+        # Arguments
+            start_fig (int) :
+                The number in the filename for the first write.
+            dpi (int) :
+                The pixel density of the output image
             
         """
         with self.my_sync:
@@ -186,18 +182,17 @@ class MultiRunSlicePlotter():
     Like the SlicePlotter class, but for comparing multiple runs simultaneously in
     a given colormap.
 
-    Public Methods:
-    ---------------
-    setup_grid
-    add_colormesh
-    plot_colormeshes
+    # Public Methods
+    - __init__()
+    - setup_grid()
+    - add_colormesh()
+    - plot_colormeshes()
 
-    Attributes:
-    -----------
-    plotters: list
-        A list of SlicePlotter objects
-    grid : ColorbarPlotGrid
-        A grid for plotting on
+    # Attributes
+        plotters (list) :
+            A list of SlicePlotter objects
+        grid (ColorbarPlotGrid) :
+            A grid for plotting on
     """
 
     def __init__(self, root_dirs, *args, **kwargs):
@@ -230,13 +225,11 @@ class MultiRunSlicePlotter():
         Plot figures of the 2D dedalus data slices at each timestep.
         For each field being plotted, plot its data for each simulation run
 
-        Arguments:
-        ----------
-        start_fig : int
-            The number in the filename for the first write.
-        dpi : int
-            The pixel density of the output image
-            
+        # Arguments
+            start_fig (int) :
+                The number in the filename for the first write.
+            dpi (int) :
+                The pixel density of the output image
         """
         with self.plotters[0].my_sync:
             axs, caxs = self._groom_grid()
