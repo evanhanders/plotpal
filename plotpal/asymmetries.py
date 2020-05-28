@@ -82,12 +82,8 @@ class AsymmetryPlotter(SingleFiletypePlotter):
                 N = 0
                 local_pos_prof_sum = None
                 local_neg_prof_sum = None
-                for f in self.files:
-                    if self.dist_comm.rank == 0:
-                        import sys
-                        print('averaging {}-{} from file {}'.format(k, m, f))
-                        sys.stdout.flush()
-                    bs, tsk, writenum, times = self.reader.read_file(f, tasks=[k,m], bases=[basis,])
+                while self.files_remain(bases, tasks):
+                    bs, tsk, writenum, times = self.read_next_file()
                     if local_pos_prof_sum is None:
                         local_pos_prof_sum = np.zeros(len(bs[basis]))
                         local_neg_prof_sum = np.zeros(len(bs[basis]))

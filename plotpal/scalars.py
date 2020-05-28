@@ -123,8 +123,8 @@ class ScalarPlotter(SingleFiletypePlotter):
             self.trace_data = OrderedDict()
             for f in self.fields: self.trace_data[f] = []
             self.trace_data['sim_time'] = []
-            for i, f in enumerate(self.files):
-                bs, tsk, writenum, times = self.reader.read_file(f, bases=[], tasks=self.fields)
+            while self.files_remain([], self.fields):
+                bs, tsk, writenum, times = self.read_next_file()
                 for f in self.fields: self.trace_data[f].append(tsk[f].flatten())
                 self.trace_data['sim_time'].append(times)
 

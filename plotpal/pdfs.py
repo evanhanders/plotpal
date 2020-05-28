@@ -65,20 +65,17 @@ class PdfPlotter(SingleFiletypePlotter):
             self.pdf_stats[k] = (mean, stdev, skew, kurt)
 
     
-    def _get_interpolated_slices(self, file_name, pdf_list, bases=['x', 'z'], uneven_basis=None):
+    def _get_interpolated_slices(self, uneven_basis=None):
         """
         For 2D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
         # Arguments
-            pdf_list (list) :
-                list of strings of the Dedalus tasks to make PDFs of.
-            bases (list, optional) :
-                The names of the Dedalus bases on which the data exists
             uneven_basis (string, optional) :
                 The basis on which the grid has uneven spacing.
         """
         #Read data
-        bs, tsk, writenum, times = self.reader.read_file(file_name, bases=bases, tasks=pdf_list)
+        bases = self.current_bases
+        bs, tsk, writenum, times = self.read_next_file()
 
         # Put data on an even grid
         x, y = bs[bases[0]], bs[bases[1]]
@@ -93,7 +90,7 @@ class PdfPlotter(SingleFiletypePlotter):
         eyy, exx = np.meshgrid(even_y, even_x)
 
         file_data = OrderedDict()
-        for k in pdf_list: 
+        for k in tsk.keys(): 
             file_data[k] = np.zeros(tsk[k].shape)
             for i in range(file_data[k].shape[0]):
                 if self.reader.comm.rank == 0:
@@ -104,20 +101,17 @@ class PdfPlotter(SingleFiletypePlotter):
 
         return file_data
 
-    def _get_interpolated_volumes(self, file_name, pdf_list, bases=['x', 'y', 'z'], uneven_basis=None):
+    def _get_interpolated_volumes(self, uneven_basis=None):
         """
         For 3D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
         # Arguments
-            pdf_list (list) :
-                list of strings of the Dedalus tasks to make PDFs of.
-            bases (list, optional) :
-                The names of the Dedalus bases on which the data exists
             uneven_basis (string, optional) :
                 The basis on which the grid has uneven spacing.
         """
         #Read data
-        bs, tsk, writenum, times = self.reader.read_file(file_name, bases=bases, tasks=pdf_list)
+        bases = self.current_bases
+        bs, tsk, writenum, times = self.read_next_file()
 
         # Put data on an even grid
         x, y, z = bs[bases[0]], bs[bases[1]], bs[bases[2]]
@@ -150,7 +144,7 @@ class PdfPlotter(SingleFiletypePlotter):
             ezz, exx = np.meshgrid(even_z, even_x)
 
         file_data = OrderedDict()
-        for k in pdf_list: 
+        for k in tsk.keys(): 
             file_data[k] = np.zeros(tsk[k].shape)
             for i in range(file_data[k].shape[0]):
                 if self.reader.comm.rank == 0:
@@ -184,11 +178,8 @@ class PdfPlotter(SingleFiletypePlotter):
                 bounds[field] = np.zeros(2)
                 bounds[field][:] = np.nan
 
-            for i, f in enumerate(self.files):
-                if self.reader.comm.rank == 0:
-                    print('getting bounds from file {}/{}...'.format(i+1, len(self.files)))
-                    stdout.flush()
-                bs, tsk, writenum, times = self.reader.read_file(f, bases=[], tasks=pdf_list)
+            while self.files_remain([], pdf_list):
+                bs, tsk, writenum, times = self.read_next_file()
                 for field in pdf_list:
                     if np.isnan(bounds[field][0]):
                         bounds[field][0], bounds[field][1] = tsk[field].min(), tsk[field].max()
@@ -204,7 +195,7 @@ class PdfPlotter(SingleFiletypePlotter):
             return bounds
 
 
-    def calculate_pdfs(self, pdf_list, bins=100, threeD=False, **kwargs):
+    def calculate_pdfs(self, pdf_list, bins=100, threeD=False, bases=['x', 'z'], **kwargs):
         """
         Calculate probability distribution functions of the specified tasks.
 
@@ -213,6 +204,11 @@ class PdfPlotter(SingleFiletypePlotter):
                 The names of the tasks to create PDFs of
             bins (int, optional) :
                 The number of bins the PDF should have
+            threeD (bool, optional) :
+                If True, find PDF of a 3D volume
+            bases (list, optional) :
+                A list of strings of the bases over which the simulation information spans. 
+                Should have 2 elements if threeD is false, 3 elements if threeD is true.
             **kwargs : additional keyword arguments for the self._get_interpolated_slices() function.
         """
         bounds = self._get_bounds(pdf_list)
@@ -226,14 +222,11 @@ class PdfPlotter(SingleFiletypePlotter):
         with self.my_sync:
             if self.idle : return
 
-            for i, f in enumerate(self.files):
-                if self.reader.comm.rank == 0:
-                    print('reading file {}/{}...'.format(i+1, len(self.files)))
-                    stdout.flush()
+            while self.files_remain(bases, pdf_list):
                 if threeD:
-                    file_data = self._get_interpolated_volumes(f, pdf_list, **kwargs)
+                    file_data = self._get_interpolated_volumes(**kwargs)
                 else:
-                    file_data = self._get_interpolated_slices(f, pdf_list, **kwargs)
+                    file_data = self._get_interpolated_slices(**kwargs)
 
                 # Create histograms of data
                 for field in pdf_list:

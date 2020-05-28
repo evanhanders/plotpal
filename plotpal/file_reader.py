@@ -1,6 +1,7 @@
 import os
 import logging
 from collections import OrderedDict
+from sys import stdout
 
 import h5py
 import numpy as np
@@ -191,4 +192,62 @@ class SingleFiletypePlotter():
         self.idle  = self.reader.idle[file_dir]
         self.dist_comm  = self.reader.distribution_comms[file_dir]
 
+        self.current_filenum = 0
+        self.current_bases   = None
+        self.current_tasks   = None
+
+    def set_read_fields(self, bases, tasks):
+        """
+        Sets the values of current_bases and current_tasks attributes
+
+        # Arguments
+            bases (list) :
+                The names of the dedalus bases to grab from each file
+            tasks (list) :
+                The names of the dedalus tasks to grab from each file
+        """
+        self.current_bases = bases
+        self.current_tasks = tasks
+
+    def files_remain(self, *args):
+        """ 
+        For use in looping over all Dedalus output files.
+
+        # Usage
+            while plotter.files_remain(['z',], ['T', 'w']):
+                data = plotter.read_next_file()
+
+        # Arguments
+            args (tuple) :
+                arguments to pass through to set_read_fields() function.
+
+        # Returns
+            boolean :
+                True if there are more files to read, otherwise false.
+        """
+        if self.current_filenum == len(self.files):
+            self.current_filenum = 0
+            self.set_read_fields(None, None)
+            return False
+        elif self.current_filenum == 0:
+            self.set_read_fields(*args)
+        return True
+
+    def read_next_file(self):
+        """
+        A wrapper for the FileReader.read_file() function which reads the "next" file.
+
+        Intended to be used in a while loop with the files_remain() function.
+
+        # Returns
+            tuple[bases, tasks, write_nums, sim_times] :
+                Data on the tracked bases and tasks from the file.
+                Also returns the output write numbers and the simulation times.
+        """
+        if self.reader.comm.rank == 0:
+            print('Reading tasks {} and bases {} on file {}/{}...'.format(self.current_tasks, self.current_bases, self.current_filenum+1, len(self.files)))
+            stdout.flush()
+        f = self.files[self.current_filenum]
+        self.current_filenum += 1
+        return self.reader.read_file(f, bases=self.current_bases, tasks=self.current_tasks)
 

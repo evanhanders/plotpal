@@ -124,16 +124,13 @@ class ProfilePlotter(SingleFiletypePlotter):
             my_tsks, my_times, my_writes   = [], [], []
             my_num_writes = 0
             min_writenum = None
-            for i, f in enumerate(self.files):
-                if self.reader.comm.rank == 0:
-                    print('Reading profiles on file {}/{}...'.format(i+1, len(self.reader.local_file_lists[self.reader.sub_dirs[0]])))
-                    stdout.flush()
-                bs, tsk, writenum, times = self.reader.read_file(f, bases=bases, tasks=tasks)
+            while self.files_remain(bases, tasks):
+                bs, tsk, writenum, times = self.read_next_file()
                 my_tsks.append(tsk)
                 my_times.append(times)
                 my_writes.append(writenum)
                 my_num_writes += len(times)
-                if i == 0:
+                if min_writenum is None:
                     min_writenum = np.min(writenum)
 
             #Communicate globally

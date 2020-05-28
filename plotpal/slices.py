@@ -120,20 +120,16 @@ class SlicePlotter(SingleFiletypePlotter):
 
             if self.idle: return
 
-            for i, f in enumerate(self.files):
-                if self.reader.comm.rank == 0:
-                    print('on file {}/{}...'.format(i+1, len(self.files)))
-                    stdout.flush()
-                bs, tsk, writenum, times = self.reader.read_file(f, bases=bases, tasks=tasks)
+            while self.files_remain(bases, tasks):
+                bs, tsk, writenum, times = self.read_next_file()
 
-                if i == 0:
-                    for cm in self.colormeshes:
-                        x = bs[cm.x_basis]
-                        y = bs[cm.y_basis]
-                        if cm.x_basis == 'φ':
-                            x /= x.max()
-                            x *= 2*np.pi
-                        cm.yy, cm.xx = np.meshgrid(y, x)
+                for cm in self.colormeshes:
+                    x = bs[cm.x_basis]
+                    y = bs[cm.y_basis]
+                    if cm.x_basis == 'φ':
+                        x /= x.max()
+                        x *= 2*np.pi
+                    cm.yy, cm.xx = np.meshgrid(y, x)
 
                 for j, n in enumerate(writenum):
                     if self.reader.comm.rank == 0:
@@ -245,15 +241,14 @@ class MultiRunSlicePlotter():
 
             if self.plotters[0].idle: return
 
-            for i in range(len(self.plotters[0].files)):
-                if self.plotters[0].reader.comm.rank == 0:
-                    print('on file {}/{}...'.format(i+1, len(self.plotters[0].files)))
-                    stdout.flush()
+            for p in self.plotters:
+                self.plotters.set_read_fields(bases, tasks)
 
+            while self.plotters[0].files_remain(bases, tasks):
                 base_data, data, writenums, times = [], [], [], []
                 for p, pt in enumerate(self.plotters):
                     f = pt.files[i]
-                    bs, tsk, writenum, ts = pt.reader.read_file(f, bases=bases, tasks=tasks)
+                    bs, tsk, writenum, times = pt.read_next_file()
                     base_data.append(bs)
                     data.append(tsk)
                     writenums.append(writenum)
