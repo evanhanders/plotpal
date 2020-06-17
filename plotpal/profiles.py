@@ -151,7 +151,7 @@ class ProfilePlotter(SingleFiletypePlotter):
                     if j == 0:
                         buff = np.zeros((glob_writes[0],n_prof))
                         profiles[t] = np.zeros((glob_writes[0], n_prof))
-                    t_indices = my_writes[j]-glob_min_writenum[0]
+                    t_indices = np.array(my_writes[j]-glob_min_writenum[0], dtype=int)
                     profiles[t][t_indices,:] = field
                     if i == 0:
                         times[t_indices] = my_times[j]
