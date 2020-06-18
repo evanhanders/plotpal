@@ -168,7 +168,7 @@ class SlicePlotter(SingleFiletypePlotter):
                         caxs[k].text(0.5, 0.5, '{:s}'.format(tasks[k]), transform=caxs[k].transAxes, va='center', ha='center')
 
                     plt.suptitle('t = {:.4e}'.format(times[j]))
-                    self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, n+start_fig-1), dpi=dpi, bbox_inches='tight')
+                    self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, int(n+start_fig-1)), dpi=dpi, bbox_inches='tight')
                     for ax in axs: ax.clear()
                     for cax in caxs: cax.clear()
 
