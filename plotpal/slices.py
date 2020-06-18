@@ -38,9 +38,14 @@ class Colormesh:
             The matplotlib colormap to plot the colormesh with
         pos_def (bool) :
             If True, profile is positive definite and colormap should span from max/min to zero.
+        polar (bool) :
+            If True, plot a polar map from 0->2*pi.
+        meridional (bool) :
+            If True, plot a meridional map from 0->pi
+
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -50,6 +55,8 @@ class Colormesh:
         self.cmap = cmap
         self.pos_def = pos_def
         self.xx, self.yy = None, None
+        self.polar = polar
+        self.meridional = meridional
 
 class SlicePlotter(SingleFiletypePlotter):
     """
@@ -95,7 +102,7 @@ class SlicePlotter(SingleFiletypePlotter):
                     caxs.append(self.grid.cbar_axes[k])
         return axs, caxs
 
-    def plot_colormeshes(self, start_fig=1, dpi=200):
+    def plot_colormeshes(self, start_fig=1, dpi=200, r_pad=(0, 1)):
         """
         Plot figures of the 2D dedalus data slices at each timestep.
 
@@ -104,7 +111,8 @@ class SlicePlotter(SingleFiletypePlotter):
                 The number in the filename for the first write.
             dpi (int) :
                 The pixel density of the output image
-            
+            r_pad (tuple of ints) :
+                Padding values for the radial grid of polar plots            
         """
         with self.my_sync:
             axs, caxs = self._groom_grid()
@@ -122,13 +130,18 @@ class SlicePlotter(SingleFiletypePlotter):
 
             while self.files_remain(bases, tasks):
                 bs, tsk, writenum, times = self.read_next_file()
+                
 
                 for cm in self.colormeshes:
-                    x = bs[cm.x_basis]
-                    y = bs[cm.y_basis]
-                    if cm.x_basis == 'φ':
-                        x /= x.max()
-                        x *= 2*np.pi
+                    x = np.copy(bs[cm.x_basis])
+                    y = np.copy(bs[cm.y_basis])
+                    if cm.polar:
+                        x = np.append(x, 2*np.pi)
+                    elif cm.meridional:
+                        x = np.pad(x, ((0,0), (1,1), (0,0)), mode='constant', constant_values=(np.pi,0))
+                        x = np.pi/2 - x
+                    if cm.polar or cm.meridional:
+                        y = np.pad(y, ((0,0), (0,0), (1,1)), mode='constant', constant_values=r_pad)
                     cm.yy, cm.xx = np.meshgrid(y, x)
 
                 for j, n in enumerate(writenum):
@@ -144,6 +157,17 @@ class SlicePlotter(SingleFiletypePlotter):
                             field -= np.mean(field, axis=0)
                         elif self.colormeshes[k].remove_y_mean:
                             field -= np.mean(field, axis=1)
+
+
+                        if cm.meridional:
+                            field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
+                        elif cm.polar:
+                            field = np.pad(field, ((0, 0), (1, 0)), mode='edge')
+
+                        if cm.polar or cm.meridional:
+                            axs[k].set_xticks([])
+                            axs[k].set_rticks([])
+                            axs[k].set_aspect(1)
 
 
                         vals = np.sort(field.flatten())
