@@ -266,7 +266,7 @@ class ProfilePlotter(SingleFiletypePlotter):
                     stdout.flush()
 
                 ax.grid(which='major')
-                plot = ax.plot(basis, profile, lw=2)
+                plot = ax.plot(basis.flatten(), profile.flatten(), lw=2)
                 ax.set_ylabel(k)
                 ax.set_xlabel(prof.basis)
                 ax.set_title('t = {:.4e}-{:.4e}'.format(t1, t2))
