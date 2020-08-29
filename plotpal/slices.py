@@ -42,10 +42,12 @@ class Colormesh:
             If True, plot a polar map from 0->2*pi.
         meridional (bool) :
             If True, plot a meridional map from 0->pi
+        mollweide (bool) :
+            If True, plot a mollweide projection
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -57,6 +59,7 @@ class Colormesh:
         self.xx, self.yy = None, None
         self.polar = polar
         self.meridional = meridional
+        self.mollweide = mollweide
 
 class SlicePlotter(SingleFiletypePlotter):
     """
@@ -140,6 +143,9 @@ class SlicePlotter(SingleFiletypePlotter):
                     elif cm.meridional:
                         x = np.pad(x, ((0,0), (1,1), (0,0)), mode='constant', constant_values=(np.pi,0))
                         x = np.pi/2 - x
+                    elif cm.mollweide:
+                        x -= np.pi
+                        y = np.pi/2 - y
                     if cm.polar or cm.meridional:
                         y = np.pad(y, ((0,0), (0,0), (1,1)), mode='constant', constant_values=r_pad)
                     cm.yy, cm.xx = np.meshgrid(y, x)
@@ -190,6 +196,10 @@ class SlicePlotter(SingleFiletypePlotter):
                         cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
                         caxs[k].xaxis.set_ticks_position('bottom')
                         caxs[k].text(0.5, 0.5, '{:s}'.format(tasks[k]), transform=caxs[k].transAxes, va='center', ha='center')
+
+                        if self.colormeshes[k].mollweide:
+                            axs[k].yaxis.set_major_locator(plt.NullLocator())
+                            axs[k].xaxis.set_major_formatter(plt.NullFormatter())
 
                     plt.suptitle('t = {:.4e}'.format(times[j]))
                     self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, int(n+start_fig-1)), dpi=dpi, bbox_inches='tight')
