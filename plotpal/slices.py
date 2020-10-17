@@ -47,7 +47,7 @@ class Colormesh:
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, vmin=None, vmax=None, log=False):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -60,6 +60,9 @@ class Colormesh:
         self.polar = polar
         self.meridional = meridional
         self.mollweide = mollweide
+        self.vmin = vmin
+        self.vmax = vmax
+        self.log  = log
 
 class SlicePlotter(SingleFiletypePlotter):
     """
@@ -175,6 +178,8 @@ class SlicePlotter(SingleFiletypePlotter):
                             axs[k].set_rticks([])
                             axs[k].set_aspect(1)
 
+                        if self.colormeshes[k].log: 
+                            field = np.log10(np.abs(field))
 
                         vals = np.sort(field.flatten())
                         if self.colormeshes[k].pos_def:
@@ -187,6 +192,11 @@ class SlicePlotter(SingleFiletypePlotter):
                             vals = np.sort(np.abs(vals))
                             vmax = vals[int(0.998*len(vals))]
                             vmin = -vmax
+
+                        if self.colormeshes[k].vmin is not None:
+                            vmin = self.colormeshes[k].vmin
+                        if self.colormeshes[k].vmax is not None:
+                            vmax = self.colormeshes[k].vmax
  
                         plot = axs[k].pcolormesh(xx, yy, field, cmap=self.colormeshes[k].cmap, vmin=vmin, vmax=vmax, rasterized=True)
                         cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
@@ -317,7 +327,13 @@ class MultiRunSlicePlotter():
                                 vmax = vals[int(0.998*len(vals))]
                                 vmin = -vmax
 
+                            if cm.vmin is not None:
+                                vmin = cm.vmin
+                            elif cm.vmax is not None:
+                                vmax = cm.vmax
+
                             index = c*len(self.plotters) + p
+
      
                             plot = axs[index].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True)
                             cb = plt.colorbar(plot, cax=caxs[index], orientation='horizontal')
