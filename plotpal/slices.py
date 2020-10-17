@@ -34,6 +34,8 @@ class Colormesh:
             If True, remove the mean value over the axis plotted in the x- direction
         remove_y_mean (bool) :
             If True, remove the mean value over the axis plotted in the y- direction
+        divide_x_mean (bool) :
+            If True, take the x-avg of abs values, then divide by that (to scale with y)
         cmap  (str) :
             The matplotlib colormap to plot the colormesh with
         pos_def (bool) :
@@ -47,13 +49,14 @@ class Colormesh:
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, vmin=None, vmax=None, log=False):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, vmin=None, vmax=None, log=False):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
         self.remove_mean = remove_mean
         self.remove_x_mean = remove_x_mean
         self.remove_y_mean = remove_y_mean
+        self.divide_x_mean = divide_x_mean
         self.cmap = cmap
         self.pos_def = pos_def
         self.xx, self.yy = None, None
@@ -160,12 +163,21 @@ class SlicePlotter(SingleFiletypePlotter):
                     for k in range(len(tasks)):
                         field = np.squeeze(tsk[tasks[k]][j,:])
                         xx, yy = self.colormeshes[k].xx, self.colormeshes[k].yy
+
+                        #Subtract out m = 0
                         if self.colormeshes[k].remove_mean:
                             field -= np.mean(field)
                         elif self.colormeshes[k].remove_x_mean:
                             field -= np.mean(field, axis=0)
                         elif self.colormeshes[k].remove_y_mean:
                             field -= np.mean(field, axis=1)
+
+
+                        #Scale by magnitude of m = 0
+                        if self.colormeshes[k].divide_x_mean:
+                            field /= np.mean(np.abs(field), axis=0)
+
+ 
 
 
                         if cm.meridional:
@@ -308,6 +320,8 @@ class MultiRunSlicePlotter():
                             y = base_data[p][cm.y_basis]
                             yy, xx = np.meshgrid(y, x)
                             field = np.squeeze(data[p][cm.field][j,:])
+
+                            #Subtract out m = 0
                             if cm.remove_mean:
                                 field -= np.mean(field)
                             elif cm.remove_x_mean:
