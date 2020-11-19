@@ -41,7 +41,7 @@ class PlotGrid:
             The width and height of the figure in inches
     """
 
-    def __init__(self, nrows, ncols, padding=50, col_in=3, row_in=3, polar=False, mollweide=False):
+    def __init__(self, nrows, ncols, padding=50, col_in=3, row_in=3, polar=False, mollweide=False, ortho=False):
         """
         Initialize and create the plot grid.
 
@@ -56,6 +56,8 @@ class PlotGrid:
                 If True, make a polar projection
             mollweide (bool) :
                 If True, make a mollweide projection
+            ortho (bool) :
+                If True, make an ortographic projection
         """
         self.nrows     = nrows
         self.ncols     = ncols
@@ -70,6 +72,9 @@ class PlotGrid:
         self.polar     = polar
         if mollweide:
             self.projection = 'mollweide'
+        elif ortho:
+            import cartopy.crs as ccrs
+            self.projection = ccrs.Orthographic(180, 45)
         else:
             self.projection = None
         self._make_subplots()

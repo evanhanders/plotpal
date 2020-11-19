@@ -49,7 +49,7 @@ class Colormesh:
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, vmin=None, vmax=None, log=False):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, ortho=False, vmin=None, vmax=None, log=False):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -62,7 +62,8 @@ class Colormesh:
         self.xx, self.yy = None, None
         self.polar = polar
         self.meridional = meridional
-        self.mollweide = mollweide
+        self.mollweide  = mollweide
+        self.ortho      = ortho
         self.vmin = vmin
         self.vmax = vmax
         self.log  = log
@@ -154,6 +155,12 @@ class SlicePlotter(SingleFiletypePlotter):
                         y = np.pi/2 - y
                     if cm.polar or cm.meridional:
                         y = np.pad(y, ((0,0), (0,0), (1,1)), mode='constant', constant_values=r_pad)
+
+                    if cm.ortho:
+                        y *= 180/np.pi
+                        x *= 180/np.pi
+                        x -= 180
+                        y -= 90
                     cm.yy, cm.xx = np.meshgrid(y, x)
 
                 for j, n in enumerate(writenum):
@@ -209,8 +216,14 @@ class SlicePlotter(SingleFiletypePlotter):
                             vmin = self.colormeshes[k].vmin
                         if self.colormeshes[k].vmax is not None:
                             vmax = self.colormeshes[k].vmax
- 
-                        plot = axs[k].pcolormesh(xx, yy, field, cmap=self.colormeshes[k].cmap, vmin=vmin, vmax=vmax, rasterized=True)
+
+                        if self.colormeshes[k].ortho:
+                            import cartopy.crs as ccrs
+                            plot = axs[k].pcolormesh(xx, yy, field, cmap=self.colormeshes[k].cmap, vmin=vmin, vmax=vmax, rasterized=True, transform=ccrs.PlateCarree())
+                            axs[k].gridlines()#draw_labels=True, dms=True, x_inline=False, y_inline=False)
+
+                        else:
+                            plot = axs[k].pcolormesh(xx, yy, field, cmap=self.colormeshes[k].cmap, vmin=vmin, vmax=vmax, rasterized=True)
                         cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
                         cb.solids.set_rasterized(True)
                         cb.set_ticks((vmin, vmax))
