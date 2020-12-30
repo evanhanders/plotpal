@@ -143,6 +143,7 @@ class FileReader:
         out_tasks = OrderedDict()
         with h5py.File(file_name, 'r') as f:
             for b in bases:
+                print(b)
                 out_bases[b] = f['scales/{:s}/1.0'.format(b)][()]
             out_write_num = f['scales']['write_number'][()]
             out_sim_time = f['scales']['sim_time'][()]

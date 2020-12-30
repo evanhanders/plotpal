@@ -49,7 +49,7 @@ class Colormesh:
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, ortho=False, vmin=None, vmax=None, log=False):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, ortho=False, vmin=None, vmax=None, log=False, vector_ind=None):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -67,6 +67,7 @@ class Colormesh:
         self.vmin = vmin
         self.vmax = vmax
         self.log  = log
+        self.vector_ind = vector_ind
 
 class SlicePlotter(SingleFiletypePlotter):
     """
@@ -167,21 +168,24 @@ class SlicePlotter(SingleFiletypePlotter):
                     if self.reader.comm.rank == 0:
                         print('writing plot {}/{} on process 0'.format(j+1, len(writenum)))
                         stdout.flush()
-                    for k in range(len(tasks)):
-                        field = np.squeeze(tsk[tasks[k]][j,:])
-                        xx, yy = self.colormeshes[k].xx, self.colormeshes[k].yy
+                    for k, cm in enumerate(self.colormeshes):
+                        field = np.squeeze(tsk[cm.field][j,:])
+                        vector_ind = cm.vector_ind
+                        if vector_ind is not None:
+                            field = field[vector_ind,:]
+                        xx, yy = cm.xx, cm.yy
 
                         #Subtract out m = 0
-                        if self.colormeshes[k].remove_mean:
+                        if cm.remove_mean:
                             field -= np.mean(field)
-                        elif self.colormeshes[k].remove_x_mean:
+                        elif cm.remove_x_mean:
                             field -= np.mean(field, axis=0)
-                        elif self.colormeshes[k].remove_y_mean:
+                        elif cm.remove_y_mean:
                             field -= np.mean(field, axis=1)
 
 
                         #Scale by magnitude of m = 0
-                        if self.colormeshes[k].divide_x_mean:
+                        if cm.divide_x_mean:
                             field /= np.mean(np.abs(field), axis=0)
 
  
@@ -197,11 +201,11 @@ class SlicePlotter(SingleFiletypePlotter):
                             axs[k].set_rticks([])
                             axs[k].set_aspect(1)
 
-                        if self.colormeshes[k].log: 
+                        if cm.log: 
                             field = np.log10(np.abs(field))
 
                         vals = np.sort(field.flatten())
-                        if self.colormeshes[k].pos_def:
+                        if cm.pos_def:
                             vals = np.sort(vals)
                             if np.mean(vals) < 0:
                                 vmin, vmax = vals[int(0.002*len(vals))], 0
@@ -212,27 +216,30 @@ class SlicePlotter(SingleFiletypePlotter):
                             vmax = vals[int(0.998*len(vals))]
                             vmin = -vmax
 
-                        if self.colormeshes[k].vmin is not None:
-                            vmin = self.colormeshes[k].vmin
-                        if self.colormeshes[k].vmax is not None:
-                            vmax = self.colormeshes[k].vmax
+                        if cm.vmin is not None:
+                            vmin = cm.vmin
+                        if cm.vmax is not None:
+                            vmax = cm.vmax
 
-                        if self.colormeshes[k].ortho:
+                        if cm.ortho:
                             import cartopy.crs as ccrs
-                            plot = axs[k].pcolormesh(xx, yy, field, cmap=self.colormeshes[k].cmap, vmin=vmin, vmax=vmax, rasterized=True, transform=ccrs.PlateCarree())
+                            plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True, transform=ccrs.PlateCarree())
                             axs[k].gridlines()#draw_labels=True, dms=True, x_inline=False, y_inline=False)
 
                         else:
-                            plot = axs[k].pcolormesh(xx, yy, field, cmap=self.colormeshes[k].cmap, vmin=vmin, vmax=vmax, rasterized=True)
+                            plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True)
                         cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
                         cb.solids.set_rasterized(True)
                         cb.set_ticks((vmin, vmax))
                         caxs[k].tick_params(direction='in', pad=1)
                         cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
                         caxs[k].xaxis.set_ticks_position('bottom')
-                        caxs[k].text(0.5, 0.5, '{:s}'.format(tasks[k]), transform=caxs[k].transAxes, va='center', ha='center')
+                        if vector_ind is not None:
+                            caxs[k].text(0.5, 0.5, '{:s}[{}]'.format(cm.field, vector_ind), transform=caxs[k].transAxes, va='center', ha='center')
+                        else:
+                            caxs[k].text(0.5, 0.5, '{:s}'.format(cm.field), transform=caxs[k].transAxes, va='center', ha='center')
 
-                        if self.colormeshes[k].mollweide:
+                        if cm.mollweide:
                             axs[k].yaxis.set_major_locator(plt.NullLocator())
                             axs[k].xaxis.set_major_formatter(plt.NullFormatter())
 
