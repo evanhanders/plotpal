@@ -7,6 +7,8 @@ To install plotpal on your local machine, navigate to the root plotpal/ director
 
 > pip3 install -e .
 
+Note that plotpal is built on [matplotlib](https://matplotlib.org/), and uses some parallel functionality of [dedalus](https://dedalus-project.org/). Some plot types, like orthographic projections, rely on [cartopy](https://scitools.org.uk/cartopy/docs/latest/). For full functionality, make sure all of these are installed.
+
 # Usage
 
 1. Copy one of the python scripts from the example/ directory somewhere closer to where you're running dedalus simulations (or just modify one of your local files there).
