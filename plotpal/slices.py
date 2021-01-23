@@ -46,10 +46,12 @@ class Colormesh:
             If True, plot a meridional map from 0->pi
         mollweide (bool) :
             If True, plot a mollweide projection
+        label (str):
+            A label for the colorbar
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, ortho=False, vmin=None, vmax=None, log=False, vector_ind=None):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, ortho=False, vmin=None, vmax=None, log=False, vector_ind=None, label=None):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -68,6 +70,7 @@ class Colormesh:
         self.vmax = vmax
         self.log  = log
         self.vector_ind = vector_ind
+        self.label = label
 
 class SlicePlotter(SingleFiletypePlotter):
     """
@@ -234,10 +237,13 @@ class SlicePlotter(SingleFiletypePlotter):
                         caxs[k].tick_params(direction='in', pad=1)
                         cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
                         caxs[k].xaxis.set_ticks_position('bottom')
-                        if vector_ind is not None:
-                            caxs[k].text(0.5, 0.5, '{:s}[{}]'.format(cm.field, vector_ind), transform=caxs[k].transAxes, va='center', ha='center')
+                        if cm.label is None:
+                            if vector_ind is not None:
+                                caxs[k].text(0.5, 0.5, '{:s}[{}]'.format(cm.field, vector_ind), transform=caxs[k].transAxes, va='center', ha='center')
+                            else:
+                                caxs[k].text(0.5, 0.5, '{:s}'.format(cm.field), transform=caxs[k].transAxes, va='center', ha='center')
                         else:
-                            caxs[k].text(0.5, 0.5, '{:s}'.format(cm.field), transform=caxs[k].transAxes, va='center', ha='center')
+                            caxs[k].text(0.5, 0.5, '{:s}'.format(cm.label), transform=caxs[k].transAxes, va='center', ha='center')
 
                         if cm.mollweide:
                             axs[k].yaxis.set_major_locator(plt.NullLocator())
