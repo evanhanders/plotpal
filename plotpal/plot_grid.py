@@ -69,14 +69,12 @@ class PlotGrid:
         self.col_size       = fl_int((1000 - padding*(self.ncols-1))/self.ncols) 
         self.row_size       = fl_int((1000 - padding*(self.nrows-1))/self.nrows) 
         self.axes      = OrderedDict()
-        self.polar     = polar
+        self.subplot_kwargs = {'polar' : polar}
         if mollweide:
-            self.projection = 'mollweide'
+            self.subplot_kwargs['projection'] = 'mollweide'
         elif ortho:
             import cartopy.crs as ccrs
-            self.projection = ccrs.Orthographic(180, 45)
-        else:
-            self.projection = None
+            self.subplot_kwargs['projection'] = ccrs.Orthographic(180, 45)
         self._make_subplots()
 
 
@@ -86,7 +84,7 @@ class PlotGrid:
             for j in range(self.nrows):
                 self.axes['ax_{}-{}'.format(i,j)] = plt.subplot(self.gs.new_subplotspec(
                                                      (j*(self.row_size+self.padding), i*(self.col_size+self.padding)),
-                                                     self.row_size, self.col_size), polar=self.polar, projection=self.projection)
+                                                     self.row_size, self.col_size), **self.subplot_kwargs)
 
 
     def full_row_ax(self, row_num):
@@ -95,7 +93,7 @@ class PlotGrid:
             del self.axes['ax_{}-{}'.format(i, row_num)]
         self.axes['ax_0-{}'.format(row_num)] = plt.subplot(self.gs.new_subplotspec(
                                                     (row_num*(self.row_size+self.padding), 0),
-                                                    self.row_size, 1000), polar=self.polar, projection=self.projection)
+                                                    self.row_size, 1000), **self.subplot_kwargs)
 
 
     def full_col_ax(self, col_num):
@@ -104,7 +102,7 @@ class PlotGrid:
             del self.axes['ax_{}-{}'.format(col_num, i)]
         self.axes['ax_{}-0'.format(col_num)] = plt.subplot(self.gs.new_subplotspec(
                                                     (0, col_num*(self.col_size+self.padding)),
-                                                    1000, self.col_size), polar=self.polar, projection=self.projection)
+                                                    1000, self.col_size), **self.subplot_kwargs)
 
 
 class ColorbarPlotGrid(PlotGrid):
@@ -133,7 +131,7 @@ class ColorbarPlotGrid(PlotGrid):
                 horiz_position = fl_int(i*(self.col_size+self.padding))
                 axis_row_size  = fl_int(self.row_size*0.8)
                 axis_col_size  = fl_int(self.col_size)
-                self.axes['ax_{}-{}'.format(i,j)] = plt.subplot(self.gs.new_subplotspec( ( vert_position, horiz_position ), axis_row_size, axis_col_size), polar=self.polar, projection=self.projection)
+                self.axes['ax_{}-{}'.format(i,j)] = plt.subplot(self.gs.new_subplotspec( ( vert_position, horiz_position ), axis_row_size, axis_col_size), **self.subplot_kwargs)
 
                 cbar_vert_position  = fl_int(j*(self.row_size+self.padding))
                 cbar_horiz_position = fl_int(i*(self.col_size+self.padding) + self.col_size*0.15)
@@ -145,13 +143,13 @@ class ColorbarPlotGrid(PlotGrid):
         """ Creates a subplot and colorbar that fill a full row """
         for i in range(self.ncols):
             del self.axes['ax_{}-{}'.format(i, row_num)]
-        self.axes['ax_0-{}'.format(row_num)]      = plt.subplot(self.gs.new_subplotspec( ( fl_int(row_num*(self.row_size+self.padding) + 0.2*self.row_size), 0 ), fl_int(self.row_size*0.8), 1000), polar=self.polar, projection=self.projection)
+        self.axes['ax_0-{}'.format(row_num)]      = plt.subplot(self.gs.new_subplotspec( ( fl_int(row_num*(self.row_size+self.padding) + 0.2*self.row_size), 0 ), fl_int(self.row_size*0.8), 1000), **self.subplot_kwargs)
         self.cbar_axes['ax_0-{}'.format(row_num)] = plt.subplot(self.gs.new_subplotspec( ( fl_int(row_num*(self.row_size+self.padding))                    , 0 ), fl_int(self.row_size*0.1), 1000))
 
     def full_col_ax(self, col_num):
         """ Creates a subplot and colorbar that fill a full column """
         for i in range(self.nrows):
             del self.axes['ax_{}-{}'.format(col_num, i)]
-        self.axes['ax_{}-0'.format(col_num)]      = plt.subplot(self.gs.new_subplotspec( (200, fl_int(col_num*(self.col_size+self.padding))), 800, fl_int(self.col_size)), polar=self.polar, projection=self.projection)
+        self.axes['ax_{}-0'.format(col_num)]      = plt.subplot(self.gs.new_subplotspec( (200, fl_int(col_num*(self.col_size+self.padding))), 800, fl_int(self.col_size)), **self.subplot_kwargs)
         self.cbar_axes['ax_{}-0'.format(col_num)] = plt.subplot(self.gs.new_subplotspec( (0, fl_int(col_num*(self.col_size+self.padding))),   100, fl_int(self.col_size)))
 
