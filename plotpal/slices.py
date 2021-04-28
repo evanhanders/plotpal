@@ -94,12 +94,16 @@ class SlicePlotter(SingleFiletypePlotter):
         # Arguments
             *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
+        self.grid = None
         super(SlicePlotter, self).__init__(*args, distribution='even', **kwargs)
         self.colormeshes = []
 
     def setup_grid(self, *args, **kwargs):
         """ Initialize the plot grid for the colormeshes """
         self.grid = ColorbarPlotGrid(*args, **kwargs)
+
+    def use_custom_grid(self, custom_grid):
+        self.grid = custom_grid
 
     def add_colormesh(self, *args, **kwargs):
         """ Add a colormesh to the list of meshes to plot """

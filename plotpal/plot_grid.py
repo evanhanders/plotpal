@@ -153,3 +153,57 @@ class ColorbarPlotGrid(PlotGrid):
         self.axes['ax_{}-0'.format(col_num)]      = plt.subplot(self.gs.new_subplotspec( (200, fl_int(col_num*(self.col_size+self.padding))), 800, fl_int(self.col_size)), **self.subplot_kwargs)
         self.cbar_axes['ax_{}-0'.format(col_num)] = plt.subplot(self.gs.new_subplotspec( (0, fl_int(col_num*(self.col_size+self.padding))),   100, fl_int(self.col_size)))
 
+
+class CustomPlotGrid:
+    
+    def __init__(self, polar=False, mollweide=False, ortho=False):
+        """x, y run from (0,0) to some positive(Xmax, Ymax) """
+        self.specs = []
+        self.x_max, self.y_max = 0, 0
+        self.nrows, self.ncols = 0, 0
+        self.x_in2g, self.y_in2g = None, None
+
+        self.axes      = OrderedDict()
+        self.cbar_axes = OrderedDict()
+        self.subplot_kwargs = {'polar' : polar}
+        if mollweide:
+            self.subplot_kwargs['projection'] = 'mollweide'
+        elif ortho:
+            import cartopy.crs as ccrs
+            self.subplot_kwargs['projection'] = ccrs.Orthographic(180, 45)
+
+    def add_spec(self, rowcolnums, base_coords, size, cbar=False):
+        self.specs.append((rowcolnums, base_coords, size, cbar))
+
+    def read_specs(self, ):
+        for spec in self.specs:
+            (row_n, col_n), (start_x, start_y), (delta_x, delta_y), cbar = spec
+            if start_x + delta_x > self.x_max:
+                self.x_max = start_x + delta_x
+            if start_y + delta_y > self.y_max:
+                self.y_max = start_y + delta_y
+            if row_n + 1 > self.nrows:
+                self.nrows = row_n + 1
+            if col_n + 1 > self.ncols:
+                self.ncols = col_n + 1
+        self.x_in2g = 1/self.x_max
+        self.y_in2g = 1/self.y_max
+        self.fig       = plt.figure(figsize=(self.x_max, self.y_max))
+
+    def make_subplots(self):
+        self.read_specs()
+        for spec in self.specs:
+            (row_n, col_n), (start_x, start_y), (delta_x, delta_y), cbar = spec
+            x_anchor = start_x*self.x_in2g
+            y_anchor = 1 - (delta_y+start_y)*self.y_in2g
+            delta_x *= self.x_in2g
+            delta_y *= self.y_in2g
+
+            if cbar:
+                cbar_y_anchor = y_anchor + 0.9*delta_y
+                cbar_x_anchor = x_anchor + (0.25/2)*delta_x
+                cbar_delta_y = 0.1*delta_y
+                cbar_delta_x = 0.75*delta_x
+                delta_y *= 0.8
+                self.cbar_axes['ax_{}-{}'.format(row_n, col_n)] = self.fig.add_axes([cbar_x_anchor, cbar_y_anchor, cbar_delta_x, cbar_delta_y])
+            self.axes['ax_{}-{}'.format(row_n, col_n)] = self.fig.add_axes([x_anchor, y_anchor, delta_x, delta_y])
