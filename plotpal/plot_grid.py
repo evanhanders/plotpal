@@ -205,5 +205,5 @@ class CustomPlotGrid:
                 cbar_delta_y = 0.1*delta_y
                 cbar_delta_x = 0.75*delta_x
                 delta_y *= 0.8
-                self.cbar_axes['ax_{}-{}'.format(row_n, col_n)] = self.fig.add_axes([cbar_x_anchor, cbar_y_anchor, cbar_delta_x, cbar_delta_y])
-            self.axes['ax_{}-{}'.format(row_n, col_n)] = self.fig.add_axes([x_anchor, y_anchor, delta_x, delta_y])
+                self.cbar_axes['ax_{}-{}'.format(col_n, row_n)] = self.fig.add_axes([cbar_x_anchor, cbar_y_anchor, cbar_delta_x, cbar_delta_y])
+            self.axes['ax_{}-{}'.format(col_n, row_n)] = self.fig.add_axes([x_anchor, y_anchor, delta_x, delta_y])
