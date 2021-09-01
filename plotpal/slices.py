@@ -156,13 +156,13 @@ class SlicePlotter(SingleFiletypePlotter):
                     if cm.polar:
                         x = np.append(x, 2*np.pi)
                     elif cm.meridional:
-                        x = np.pad(x, ((0,0), (1,1), (0,0)), mode='constant', constant_values=(np.pi,0))
+                        x = np.pad(x, ((1,1)), mode='constant', constant_values=(np.pi,0))
                         x = np.pi/2 - x
                     elif cm.mollweide:
                         x -= np.pi
                         y = np.pi/2 - y
                     if cm.polar or cm.meridional:
-                        y = np.pad(y, ((0,0), (0,0), (1,1)), mode='constant', constant_values=r_pad)
+                        y = np.pad(y, ((1,1)), mode='constant', constant_values=r_pad)
 
                     if cm.ortho:
                         y *= 180/np.pi

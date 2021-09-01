@@ -142,15 +142,19 @@ class FileReader:
         out_bases = OrderedDict()
         out_tasks = OrderedDict()
         with h5py.File(file_name, 'r') as f:
-            for b in bases:
-                try:
-                    out_bases[b] = f['scales/{:s}/1.0'.format(b)][()]
-                except:
-                    out_bases[b] = f['scales/{:s}/1.5'.format(b)][()]
             out_write_num = f['scales']['write_number'][()]
             out_sim_time = f['scales']['sim_time'][()]
             for t in tasks:
-                out_tasks[t] = f['tasks'][t][()]
+                if t not in out_tasks.keys():
+                    # Read in task
+                    dset = f['tasks'][t]
+                    out_tasks[t] = dset[()]
+                    for b in bases:
+                        if b not in out_bases.keys():
+                            # Read in basis
+                            for i in range(len(out_tasks[t].shape)):
+                                if dset.dims[i].label == b:
+                                    out_bases[b] = dset.dims[i][0][:].ravel()
         return out_bases, out_tasks, out_write_num, out_sim_time
 
 class SingleFiletypePlotter():
