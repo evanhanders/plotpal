@@ -11,6 +11,12 @@ from dedalus.tools.parallel import Sync
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
+def match_basis(dset, basis):
+    """ Returns a 1D numpy array of the requested basis "n bases: """
+    for i in range(len(dset.dims)):
+        if dset.dims[i].label == basis:
+            return dset.dims[i][0][:].ravel()
+
 
 class FileReader:
     """ 
@@ -116,46 +122,24 @@ class FileReader:
                     self.distribution_comms[k] = self.comm
           
 
-    def read_file(self, file_name, bases=[], tasks=[]):
+    def read_file(self, f, tasks=[]):
         """ 
         Opens a dedalus file and reads out the specific bases, tasks, write numbers, and times.
 
         # Arguments
-        file_name (str) : 
-            string path to the file being opened
-        bases (list, optional) : 
-            The names of the bases to pull from the file, e.g., 'x', 'z'
+        f (h5py File object) : 
+            An open, readable h5py file
         tasks (list, optional) : 
             The output tasks to pull from the file, e.g., 'vorticity', 'entropy'
 
         # Outputs 
         - OrderedDict (NumPy Array) : 
-            The desired bases. Dictionary keys are the elements of input list 'bases'
-        - OrderedDict (NumPy Array) : 
-            The desired tasks. Dictionary keys are the elements of input list 'tasks'
-        - NumPy Array (Float): 
-            The write number of each write in the file
-        - NumPy Array (Float) : 
-            The simulation time of each write in the file
-            
+            h5py datasets of the desired tasks. 
         """
-        out_bases = OrderedDict()
-        out_tasks = OrderedDict()
-        with h5py.File(file_name, 'r') as f:
-            out_write_num = f['scales']['write_number'][()]
-            out_sim_time = f['scales']['sim_time'][()]
-            for t in tasks:
-                if t not in out_tasks.keys():
-                    # Read in task
-                    dset = f['tasks'][t]
-                    out_tasks[t] = dset[()]
-                    for b in bases:
-                        if b not in out_bases.keys():
-                            # Read in basis
-                            for i in range(len(out_tasks[t].shape)):
-                                if dset.dims[i].label == b:
-                                    out_bases[b] = dset.dims[i][0][:].ravel()
-        return out_bases, out_tasks, out_write_num, out_sim_time
+        out_dsets = OrderedDict()
+        for t in tasks:
+            out_dsets[t] = f['tasks/{}'.format(t)]
+        return out_dsets
 
 class SingleFiletypePlotter():
     """
@@ -200,20 +184,17 @@ class SingleFiletypePlotter():
         self.dist_comm  = self.reader.distribution_comms[file_dir]
 
         self.current_filenum = 0
-        self.current_bases   = None
         self.current_tasks   = None
+        self.current_file    = None
 
-    def set_read_fields(self, bases, tasks):
+    def set_read_fields(self, tasks):
         """
         Sets the values of current_bases and current_tasks attributes
 
         # Arguments
-            bases (list) :
-                The names of the dedalus bases to grab from each file
             tasks (list) :
                 The names of the dedalus tasks to grab from each file
         """
-        self.current_bases = bases
         self.current_tasks = tasks
 
     def files_remain(self, *args):
@@ -234,7 +215,9 @@ class SingleFiletypePlotter():
         """
         if self.current_filenum == len(self.files):
             self.current_filenum = 0
-            self.set_read_fields(None, None)
+            self.set_read_fields(None)
+            self.current_file.close()
+            self.current_file = None
             return False
         elif self.current_filenum == 0:
             self.set_read_fields(*args)
@@ -247,14 +230,14 @@ class SingleFiletypePlotter():
         Intended to be used in a while loop with the files_remain() function.
 
         # Returns
-            tuple[bases, tasks, write_nums, sim_times] :
-                Data on the tracked bases and tasks from the file.
-                Also returns the output write numbers and the simulation times.
+            OrderedDict containing datasets of all tasks
         """
         if self.reader.comm.rank == 0:
-            print('Reading tasks {} and bases {} on file {}/{}...'.format(self.current_tasks, self.current_bases, self.current_filenum+1, len(self.files)))
+            print('Reading tasks {} on file {}/{}...'.format(self.current_tasks, self.current_filenum+1, len(self.files)))
             stdout.flush()
-        f = self.files[self.current_filenum]
+        if self.current_file is not None:
+            self.current_file.close()
+        self.current_file = h5py.File(self.files[self.current_filenum], 'r')
         self.current_filenum += 1
-        return self.reader.read_file(f, bases=self.current_bases, tasks=self.current_tasks)
+        return self.reader.read_file(self.current_file, tasks=self.current_tasks)
 
