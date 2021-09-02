@@ -8,6 +8,7 @@ import numpy as np
 from mpi4py import MPI
 
 from dedalus.tools.parallel import Sync
+from dedalus.tools.general import natural_sort
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
@@ -37,6 +38,10 @@ class FileReader:
             A dict of bools. True if the local processor is not responsible for any files
         local_file_lists (OrderedDict) :
             lists of string paths to output files that this processor is responsible for reading, split by sub_dirs
+        local_file_starts (OrderedDict) :
+            First write number of the corresponding file to read
+        local_file_nums (OrderedDict) :
+            Total writes of the corresponding file to read
         run_dir (str) :
             Path to root dedalus directory
         sub_dirs (list) :
@@ -73,10 +78,13 @@ class FileReader:
                     file_num = int(f.split('.h5')[0].split('_s')[-1])
                     if file_num < start_file: continue
                     if n is not None and file_num > start_file+n: continue
-                    files.append(['{:s}/{:s}/{:s}'.format(self.run_dir, d, f), file_num])
-            self.file_lists[d], nums = zip(*sorted(files, key=lambda x: x[1]))
+                    files.append('{:s}/{:s}/{:s}'.format(self.run_dir, d, f))
+            self.file_lists[d] = natural_sort(files)
 
+        # TODO: change _distribute_files() to use dedalus.tools.post.get_assigned_writes.
         self.local_file_lists = OrderedDict()
+        self.local_file_starts = OrderedDict()
+        self.local_file_nums = OrderedDict()
         self.distribution_comms = OrderedDict()
         self.idle = OrderedDict()
         self._distribute_files(**kwargs)
