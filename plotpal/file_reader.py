@@ -9,6 +9,7 @@ from mpi4py import MPI
 
 from dedalus.tools.parallel import Sync
 from dedalus.tools.general import natural_sort
+from dedalus.tools import post
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
@@ -28,27 +29,25 @@ class FileReader:
     - read_file()
 
     # Attributes
-        comm (mpi4py Comm) :
-            The MPI communicator to use for parallel post-processing distribution
-        distribution_comms (OrderedDict) :
+        global_comm (mpi4py Comm) :
+            The global MPI communicator to use for parallel post-processing distribution
+        comms (OrderedDict) :
             subdivided communicators based on desired processor distribution, split by sub_dirs
         file_lists (OrderedDict) :
             Contains lists of string paths to all files being processed for each dir in sub_dirs
         idle (OrderedDict) :
             A dict of bools. True if the local processor is not responsible for any files
-        local_file_lists (OrderedDict) :
-            lists of string paths to output files that this processor is responsible for reading, split by sub_dirs
-        local_file_starts (OrderedDict) :
-            First write number of the corresponding file to read
-        local_file_nums (OrderedDict) :
-            Total writes of the corresponding file to read
+        file_starts (OrderedDict) :
+            First write number of the corresponding file to read on local processor
+        file_counts (OrderedDict) :
+            Total number of writes to read in corresponding file
         run_dir (str) :
             Path to root dedalus directory
         sub_dirs (list) :
             List of strings of subdirectories in run_dir to consider files in
     """
 
-    def __init__(self, run_dir, sub_dirs=['slices',], num_files=[None,], start_file=1, comm=MPI.COMM_WORLD, **kwargs):
+    def __init__(self, run_dir, sub_dirs=['slices',], num_files=[None,], start_file=1, global_comm=MPI.COMM_WORLD, **kwargs):
         """
         Initializes the file reader.
 
@@ -61,15 +60,15 @@ class FileReader:
             Number of files to read in each subdirectory. If None, read them all.
         start_file (int, optional) :
             File number to start reading from (1 by default)
-        comm (mpi4py Comm, optional) :
+        global_comm (mpi4py Comm, optional) :
             As defined in class-level docstring
         **kwargs (dict) : 
-            Additional keyword arguments for the self._distribute_files() function.
+            Additional keyword arguments for the self._distribute_writes() function.
         """
         self.run_dir    = os.path.expanduser(run_dir)
         self.sub_dirs   = sub_dirs
         self.file_lists = OrderedDict()
-        self.comm       = comm
+        self.global_comm       = global_comm
 
         for d, n in zip(sub_dirs, num_files):
             files = []
@@ -81,75 +80,68 @@ class FileReader:
                     files.append('{:s}/{:s}/{:s}'.format(self.run_dir, d, f))
             self.file_lists[d] = natural_sort(files)
 
-        # TODO: change _distribute_files() to use dedalus.tools.post.get_assigned_writes.
-        self.local_file_lists = OrderedDict()
-        self.local_file_starts = OrderedDict()
-        self.local_file_nums = OrderedDict()
-        self.distribution_comms = OrderedDict()
+        # TODO: change _distribute_writes() to use dedalus.tools.post.get_assigned_writes.
+        self.file_starts = OrderedDict()
+        self.file_counts = OrderedDict()
+        self.comms = OrderedDict()
         self.idle = OrderedDict()
-        self._distribute_files(**kwargs)
+        self._distribute_writes(**kwargs)
 
 
-    def _distribute_files(self, distribution='single'):
+    def _distribute_writes(self, distribution='even-write', chunk_size=100):
         """
-        Distribute files across MPI processes according to a given type of file distribution.
+        Distribute writes (or files) across MPI processes according to the specified rule.
 
         Currently, these types of file distributions are implemented:
-            1. 'even'   : evenly distribute over all mpi processes
-            2. 'single' : First process takes all file tasks
+            1. 'single'       : First process takes all file tasks
+            2. 'even-write'   : evenly distribute total number of writes over all mpi processes
+            3. 'even-file'    : evenly distribute total number of files over all mpi processes
+            4. 'even-chunk'   : evenly distribute chunks of writes over all mpi processes
 
         # Arguments
             distribution (string, optional) : 
                 Type of MPI file distribution
         """
         for k, files in self.file_lists.items():
+            writes = np.array(post.get_all_writes(files))
+            set_ends = np.cumsum(writes)
+            set_starts = set_ends - writes
             self.idle[k] = False
+
             if distribution.lower() == 'single':
-                self.distribution_comms[k] = None
-                if self.comm.rank >= 1:
-                    self.local_file_lists[k] = None
-                    self.idle[k] = True
+                self.comms[k] = MPI.COMM_SELF
+                if self.global_comm.rank == 0:
+                    self.file_starts[k] = np.zeros_like(writes)
+                    self.file_counts[k] = np.copy(writes)
                 else:
-                    self.local_file_lists[k] = files
-            elif distribution.lower() == 'even':
-                if len(files) <= self.comm.size:
-                    if self.comm.rank >= len(files):
-                        self.local_file_lists[k] = None
-                        self.distribution_comms[k] = None
+                    self.file_starts[k] = np.copy(writes)
+                    self.file_counts[k] = np.zeros_like(writes)
+                    self.idle[k] = True
+            elif distribution.lower() == 'even-write':
+                self.file_starts[k], self.file_counts[k] = post.get_assigned_writes(files)
+                self.comms[k] = self.global_comm
+            elif distribution.lower() == 'even-file':
+                self.file_starts[k] = np.copy(writes)
+                self.file_counts[k] = np.zeros_like(writes)
+                if len(files) <= self.global_comm.size:
+                    if self.global_comm.rank >= len(files):
+                        self.comms[k] = MPI.COMM_SELF
                         self.idle[k] = True
                     else:
-                        self.local_file_lists[k] = [files[self.comm.rank],]
-                        self.distribution_comms[k] = self.comm.Create(self.comm.Get_group().Incl(np.arange(len(files))))
+                        self.file_starts[k][self.global_comm.rank] = 0
+                        self.file_counts[k][self.global_comm.rank] = writes[self.global_comm.rank]
+                        self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(len(files))))
                 else:
-                    files_per = int(np.floor(len(files) / self.comm.size))
-                    excess_files = int(len(files) % self.comm.size)
-                    if self.comm.rank >= excess_files:
-                        self.local_file_lists[k] = list(files[int(self.comm.rank*files_per+excess_files):int((self.comm.rank+1)*files_per+excess_files)])
-                    else:
-                        self.local_file_lists[k] = list(files[int(self.comm.rank*(files_per+1)):int((self.comm.rank+1)*(files_per+1))])
-                    self.distribution_comms[k] = self.comm
-          
+                    file_block = int(np.ceil(len(files) / self.global_comm.size))
+                    proc_start = self.global_comm.rank * file_block
+                    self.file_starts[k][proc_start:proc_start+file_block] = 0
+                    self.file_counts[k][proc_start:proc_start+file_block] = writes[proc_start:proc_start+file_block]
+                    self.comms[k] = self.global_comm
+            elif distribution.lower() == 'even-chunk':
+                raise NotImplementedError
 
-    def read_file(self, f, tasks=[]):
-        """ 
-        Opens a dedalus file and reads out the specific bases, tasks, write numbers, and times.
 
-        # Arguments
-        f (h5py File object) : 
-            An open, readable h5py file
-        tasks (list, optional) : 
-            The output tasks to pull from the file, e.g., 'vorticity', 'entropy'
-
-        # Outputs 
-        - OrderedDict (NumPy Array) : 
-            h5py datasets of the desired tasks. 
-        """
-        out_dsets = OrderedDict()
-        for t in tasks:
-            out_dsets[t] = f['tasks/{}'.format(t)]
-        return out_dsets
-
-class SingleFiletypePlotter():
+class SingleTypeReader():
     """
     An abstract class for plotters that only deal with a single directory of Dedalus data
 
@@ -183,69 +175,56 @@ class SingleFiletypePlotter():
         self.reader = FileReader(root_dir, sub_dirs=[file_dir,], num_files=[n_files,], **kwargs)
         self.fig_name = fig_name
         self.out_dir  = '{:s}/{:s}/'.format(root_dir, fig_name)
-        if self.reader.comm.rank == 0 and not os.path.exists('{:s}'.format(self.out_dir)):
+        if self.reader.global_comm.rank == 0 and not os.path.exists('{:s}'.format(self.out_dir)):
             os.mkdir('{:s}'.format(self.out_dir))
-        self.my_sync = Sync(self.reader.comm)
+        self.my_sync = Sync(self.reader.global_comm)
 
-        self.files = self.reader.local_file_lists[file_dir]
+        self.files = self.reader.file_lists[file_dir]
         self.idle  = self.reader.idle[file_dir]
-        self.dist_comm  = self.reader.distribution_comms[file_dir]
+        self.comm  = self.reader.comms[file_dir]
+        self.starts = self.reader.file_starts[file_dir]
+        self.counts = self.reader.file_counts[file_dir]
+        self.writes = np.sum(self.counts)
 
-        self.current_filenum = 0
-        self.current_tasks   = None
-        self.current_file    = None
+        file_num = []
+        local_indices = []
+        for i, c in enumerate(self.counts):
+            if c > 0:
+                local_indices.append(np.arange(c, dtype=np.int64) + self.starts[i])
+                file_num.append(i*np.ones(c, dtype=np.int64))
+        self.file_index = np.concatenate(local_indices, dtype=np.int64)
+        self.file_num   = np.concatenate(file_num, dtype=np.int64)
 
-    def set_read_fields(self, tasks):
-        """
-        Sets the values of current_bases and current_tasks attributes
+        self.current_write = -1
+        self.current_file_handle = None
+        self.current_file_number = None
 
-        # Arguments
-            tasks (list) :
-                The names of the dedalus tasks to grab from each file
-        """
-        self.current_tasks = tasks
-
-    def files_remain(self, *args):
-        """ 
-        For use in looping over all Dedalus output files.
-
-        # Usage
-            while plotter.files_remain(['z',], ['T', 'w']):
-                data = plotter.read_next_file()
-
-        # Arguments
-            args (tuple) :
-                arguments to pass through to set_read_fields() function.
-
-        # Returns
-            boolean :
-                True if there are more files to read, otherwise false.
-        """
-        if self.current_filenum == len(self.files):
-            self.current_filenum = 0
-            self.set_read_fields(None)
-            self.current_file.close()
-            self.current_file = None
+    def writes_remain(self):
+        """ TODO """
+        if self.current_write >= self.writes - 1:
+            self.current_write = -1
+            self.current_file_handle.close()
+            self.current_file_handle = None
+            self.current_file_number = None
             return False
-        elif self.current_filenum == 0:
-            self.set_read_fields(*args)
-        return True
+        else:
+            self.current_write += 1
+            next_file_number = self.file_num[self.current_write]
+            if self.current_file_number is None:
+                #First iter
+                self.current_file_number = next_file_number
+                self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+            elif self.current_file_number != next_file_number:
+                self.current_file_handle.close()
+                self.current_file_number = next_file_number
+                self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+            return True
 
-    def read_next_file(self):
-        """
-        A wrapper for the FileReader.read_file() function which reads the "next" file.
-
-        Intended to be used in a while loop with the files_remain() function.
-
-        # Returns
-            OrderedDict containing datasets of all tasks
-        """
-        if self.reader.comm.rank == 0:
-            print('Reading tasks {} on file {}/{}...'.format(self.current_tasks, self.current_filenum+1, len(self.files)))
-            stdout.flush()
-        if self.current_file is not None:
-            self.current_file.close()
-        self.current_file = h5py.File(self.files[self.current_filenum], 'r')
-        self.current_filenum += 1
-        return self.reader.read_file(self.current_file, tasks=self.current_tasks)
-
+    def get_dsets(self, tasks):
+        """ TODO """
+        output = OrderedDict()
+        f = self.current_file_handle
+        for k in tasks:
+            output[k] = f['tasks/{}'.format(k)]
+        return output, self.file_index[self.current_write]
+            

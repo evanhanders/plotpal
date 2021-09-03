@@ -9,7 +9,7 @@ from sys import path
 
 from dedalus.tools.parallel import Sync
 
-from plotpal.file_reader import SingleFiletypePlotter, match_basis
+from plotpal.file_reader import SingleTypeReader, match_basis
 from plotpal.plot_grid import ColorbarPlotGrid
 
 import numpy as np
@@ -71,7 +71,7 @@ class Colormesh:
         self.vector_ind = vector_ind
         self.label = label
 
-class SlicePlotter(SingleFiletypePlotter):
+class SlicePlotter(SingleTypeReader):
     """
     A class for plotting colormeshes of 2D slices of dedalus data.
 
@@ -94,7 +94,7 @@ class SlicePlotter(SingleFiletypePlotter):
             *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
         self.grid = None
-        super(SlicePlotter, self).__init__(*args, distribution='even', **kwargs)
+        super(SlicePlotter, self).__init__(*args, distribution='even-write', **kwargs)
         self.colormeshes = []
 
     def setup_grid(self, *args, **kwargs):
@@ -139,8 +139,12 @@ class SlicePlotter(SingleFiletypePlotter):
                     tasks.append(cm.field)
             if self.idle: return
 
-            while self.files_remain(tasks):
-                dsets = self.read_next_file()
+            while self.writes_remain():
+                if self.reader.global_comm.rank == 0:
+                    print('writing plot {}/{} on process 0'.format(self.current_write+1, self.writes))
+                    stdout.flush()
+                dsets, ni = self.get_dsets(tasks)
+                time_data = dsets[self.colormeshes[0].field].dims[0]
 
                 for cm in self.colormeshes:
                     x = match_basis(dsets[cm.field], cm.x_basis)
@@ -163,88 +167,83 @@ class SlicePlotter(SingleFiletypePlotter):
                         y -= 90
                     cm.yy, cm.xx = np.meshgrid(y, x)
 
-                time_data = dsets[self.colormeshes[0].field].dims[0]
 
-                for j, n in enumerate(time_data['write_number'][()]):
-                    if self.reader.comm.rank == 0:
-                        print('writing plot {}/{} on process 0'.format(j+1, len(time_data['write_number'][()])))
-                        stdout.flush()
-                    for k, cm in enumerate(self.colormeshes):
-                        field = np.squeeze(dsets[cm.field][j,:])
-                        vector_ind = cm.vector_ind
+                for k, cm in enumerate(self.colormeshes):
+                    field = np.squeeze(dsets[cm.field][ni,:])
+                    vector_ind = cm.vector_ind
+                    if vector_ind is not None:
+                        field = field[vector_ind,:]
+                    xx, yy = cm.xx, cm.yy
+
+                    #Subtract out m = 0
+                    if cm.remove_mean:
+                        field -= np.mean(field)
+                    elif cm.remove_x_mean:
+                        field -= np.mean(field, axis=0)
+                    elif cm.remove_y_mean:
+                        field -= np.mean(field, axis=1)
+
+                    #Scale by magnitude of m = 0
+                    if cm.divide_x_mean:
+                        field /= np.mean(np.abs(field), axis=0)
+
+                    if cm.meridional:
+                        field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
+                    elif cm.polar:
+                        field = np.pad(field, ((0, 0), (1, 0)), mode='edge')
+
+                    if cm.polar or cm.meridional:
+                        axs[k].set_xticks([])
+                        axs[k].set_yticks([])
+                        axs[k].set_aspect(1)
+
+                    if cm.log: 
+                        field = np.log10(np.abs(field))
+
+                    vals = np.sort(field.flatten())
+                    if cm.pos_def:
+                        vals = np.sort(vals)
+                        if np.mean(vals) < 0:
+                            vmin, vmax = vals[int(0.002*len(vals))], 0
+                        else:
+                            vmin, vmax = 0, vals[int(0.998*len(vals))]
+                    else:
+                        vals = np.sort(np.abs(vals))
+                        vmax = vals[int(0.998*len(vals))]
+                        vmin = -vmax
+
+                    if cm.vmin is not None:
+                        vmin = cm.vmin
+                    if cm.vmax is not None:
+                        vmax = cm.vmax
+
+                    if cm.ortho:
+                        import cartopy.crs as ccrs
+                        plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True, transform=ccrs.PlateCarree())
+                        axs[k].gridlines()#draw_labels=True, dms=True, x_inline=False, y_inline=False)
+
+                    else:
+                        plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True)
+                    cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
+                    cb.solids.set_rasterized(True)
+                    cb.set_ticks((vmin, vmax))
+                    caxs[k].tick_params(direction='in', pad=1)
+                    cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
+                    caxs[k].xaxis.set_ticks_position('bottom')
+                    if cm.label is None:
                         if vector_ind is not None:
-                            field = field[vector_ind,:]
-                        xx, yy = cm.xx, cm.yy
-
-                        #Subtract out m = 0
-                        if cm.remove_mean:
-                            field -= np.mean(field)
-                        elif cm.remove_x_mean:
-                            field -= np.mean(field, axis=0)
-                        elif cm.remove_y_mean:
-                            field -= np.mean(field, axis=1)
-
-                        #Scale by magnitude of m = 0
-                        if cm.divide_x_mean:
-                            field /= np.mean(np.abs(field), axis=0)
-
-                        if cm.meridional:
-                            field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
-                        elif cm.polar:
-                            field = np.pad(field, ((0, 0), (1, 0)), mode='edge')
-
-                        if cm.polar or cm.meridional:
-                            axs[k].set_xticks([])
-                            axs[k].set_yticks([])
-                            axs[k].set_aspect(1)
-
-                        if cm.log: 
-                            field = np.log10(np.abs(field))
-
-                        vals = np.sort(field.flatten())
-                        if cm.pos_def:
-                            vals = np.sort(vals)
-                            if np.mean(vals) < 0:
-                                vmin, vmax = vals[int(0.002*len(vals))], 0
-                            else:
-                                vmin, vmax = 0, vals[int(0.998*len(vals))]
+                            caxs[k].text(0.5, 0.5, '{:s}[{}]'.format(cm.field, vector_ind), transform=caxs[k].transAxes, va='center', ha='center')
                         else:
-                            vals = np.sort(np.abs(vals))
-                            vmax = vals[int(0.998*len(vals))]
-                            vmin = -vmax
+                            caxs[k].text(0.5, 0.5, '{:s}'.format(cm.field), transform=caxs[k].transAxes, va='center', ha='center')
+                    else:
+                        caxs[k].text(0.5, 0.5, '{:s}'.format(cm.label), transform=caxs[k].transAxes, va='center', ha='center')
 
-                        if cm.vmin is not None:
-                            vmin = cm.vmin
-                        if cm.vmax is not None:
-                            vmax = cm.vmax
+                    if cm.mollweide:
+                        axs[k].yaxis.set_major_locator(plt.NullLocator())
+                        axs[k].xaxis.set_major_formatter(plt.NullFormatter())
 
-                        if cm.ortho:
-                            import cartopy.crs as ccrs
-                            plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True, transform=ccrs.PlateCarree())
-                            axs[k].gridlines()#draw_labels=True, dms=True, x_inline=False, y_inline=False)
-
-                        else:
-                            plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True)
-                        cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
-                        cb.solids.set_rasterized(True)
-                        cb.set_ticks((vmin, vmax))
-                        caxs[k].tick_params(direction='in', pad=1)
-                        cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
-                        caxs[k].xaxis.set_ticks_position('bottom')
-                        if cm.label is None:
-                            if vector_ind is not None:
-                                caxs[k].text(0.5, 0.5, '{:s}[{}]'.format(cm.field, vector_ind), transform=caxs[k].transAxes, va='center', ha='center')
-                            else:
-                                caxs[k].text(0.5, 0.5, '{:s}'.format(cm.field), transform=caxs[k].transAxes, va='center', ha='center')
-                        else:
-                            caxs[k].text(0.5, 0.5, '{:s}'.format(cm.label), transform=caxs[k].transAxes, va='center', ha='center')
-
-                        if cm.mollweide:
-                            axs[k].yaxis.set_major_locator(plt.NullLocator())
-                            axs[k].xaxis.set_major_formatter(plt.NullFormatter())
-
-                    plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][j]))
-                    self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, int(n+start_fig-1)), dpi=dpi, bbox_inches='tight')
-                    for ax in axs: ax.clear()
-                    for cax in caxs: cax.clear()
+                plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
+                self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
+                for ax in axs: ax.clear()
+                for cax in caxs: cax.clear()
 
