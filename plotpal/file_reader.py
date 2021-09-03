@@ -57,7 +57,7 @@ class FileReader:
                 if f.endswith('.h5'):
                     file_num = int(f.split('.h5')[0].split('_s')[-1])
                     if file_num < start_file: continue
-                    if n is not None and file_num > start_file+n: continue
+                    if n is not None and file_num >= start_file+n: continue
                     files.append('{:s}/{:s}/{:s}'.format(self.run_dir, d, f))
             self.file_lists[d] = natural_sort(files)
 

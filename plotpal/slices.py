@@ -50,7 +50,11 @@ class Colormesh:
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', pos_def=False, polar=False, meridional=False, mollweide=False, ortho=False, vmin=None, vmax=None, log=False, vector_ind=None, label=None):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, \
+                              remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', \
+                              pos_def=False, polar=False, meridional=False, mollweide=False, \
+                              ortho=False, vmin=None, vmax=None, log=False, vector_ind=None, \
+                              label=None):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
