@@ -1,4 +1,7 @@
 """
+This rayleigh_benard.py file was shamelessly stolen from the d3 examples of
+the dedalus project repo (https://github.com/dedalusproject/dedalus).
+
 Dedalus script simulating 2D horizontally-periodic Rayleigh-Benard convection.
 This script demonstrates solving a 2D cartesian initial value problem. It can
 be ran serially or in parallel, and uses the built-in analysis framework to save
