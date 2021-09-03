@@ -23,37 +23,18 @@ def match_basis(dset, basis):
 class FileReader:
     """ 
     A general class for reading and interacting with Dedalus output data.
-
-    # Public Methods
-    - __init__()
-    - read_file()
-
-    # Attributes
-        global_comm (mpi4py Comm) :
-            The global MPI communicator to use for parallel post-processing distribution
-        comms (OrderedDict) :
-            subdivided communicators based on desired processor distribution, split by sub_dirs
-        file_lists (OrderedDict) :
-            Contains lists of string paths to all files being processed for each dir in sub_dirs
-        idle (OrderedDict) :
-            A dict of bools. True if the local processor is not responsible for any files
-        file_starts (OrderedDict) :
-            First write number of the corresponding file to read on local processor
-        file_counts (OrderedDict) :
-            Total number of writes to read in corresponding file
-        run_dir (str) :
-            Path to root dedalus directory
-        sub_dirs (list) :
-            List of strings of subdirectories in run_dir to consider files in
+    This class takes a list of dedalus files and distributes them across MPI processes according to a specified rule.
     """
 
-    def __init__(self, run_dir, sub_dirs=['slices',], num_files=[None,], start_file=1, global_comm=MPI.COMM_WORLD, **kwargs):
+    def __init__(self, run_dir, distribution='even-write', sub_dirs=['slices',], num_files=[None,], start_file=1, global_comm=MPI.COMM_WORLD, **kwargs):
         """
         Initializes the file reader.
 
         # Arguments
         run_dir (str) :
             As defined in class-level docstring
+        distribution (string, optional) : 
+            Type of MPI file distribution (see _distribute_writes() function)
         sub_dirs (list, optional) :
             As defined in class-level docstring
         num_files (list, optional) :
@@ -85,10 +66,9 @@ class FileReader:
         self.file_counts = OrderedDict()
         self.comms = OrderedDict()
         self.idle = OrderedDict()
-        self._distribute_writes(**kwargs)
+        self._distribute_writes(distribution, **kwargs)
 
-
-    def _distribute_writes(self, distribution='even-write', chunk_size=100):
+    def _distribute_writes(self, distribution, chunk_size=100):
         """
         Distribute writes (or files) across MPI processes according to the specified rule.
 
@@ -99,7 +79,7 @@ class FileReader:
             4. 'even-chunk'   : evenly distribute chunks of writes over all mpi processes
 
         # Arguments
-            distribution (string, optional) : 
+            distribution (string) : 
                 Type of MPI file distribution
         """
         for k, files in self.file_lists.items():
@@ -138,7 +118,9 @@ class FileReader:
                     self.file_counts[k][proc_start:proc_start+file_block] = writes[proc_start:proc_start+file_block]
                     self.comms[k] = self.global_comm
             elif distribution.lower() == 'even-chunk':
-                raise NotImplementedError
+                raise NotImplementedError("even-chunk Not yet implemented; use even-write or even-file")
+            else:
+                raise ValueError("invalid distribution choice.")
 
 
 class SingleTypeReader():
@@ -200,7 +182,11 @@ class SingleTypeReader():
         self.current_file_number = None
 
     def writes_remain(self):
-        """ TODO """
+        """ 
+            Increments to the next write on the local MPI process.
+            Returns False if there are no writes left and True if a write is found.
+            For use in a while statement (e.g., while writes_remain(): do stuff).
+        """
         if self.current_write >= self.writes - 1:
             self.current_write = -1
             self.current_file_handle.close()
@@ -221,7 +207,7 @@ class SingleTypeReader():
             return True
 
     def get_dsets(self, tasks):
-        """ TODO """
+        """ Given a list of task strings, returns a dictionary of the associated datasets. """
         output = OrderedDict()
         f = self.current_file_handle
         for k in tasks:

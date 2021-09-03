@@ -71,6 +71,7 @@ class Colormesh:
         self.vector_ind = vector_ind
         self.label = label
 
+
 class SlicePlotter(SingleTypeReader):
     """
     A class for plotting colormeshes of 2D slices of dedalus data.
@@ -119,7 +120,53 @@ class SlicePlotter(SingleTypeReader):
                     caxs.append(self.grid.cbar_axes[k])
         return axs, caxs
 
-    def plot_colormeshes(self, start_fig=1, dpi=200, r_pad=(0, 1)):
+    def _get_pcolormesh_coordinates(self, dsets, r_pad=None):
+        for cm in self.colormeshes:
+            x = match_basis(dsets[cm.field], cm.x_basis)
+            y = match_basis(dsets[cm.field], cm.y_basis)
+            if cm.polar:
+                x = np.append(x, 2*np.pi)
+            elif cm.meridional:
+                x = np.pad(x, ((1,1)), mode='constant', constant_values=(np.pi,0))
+                x = np.pi/2 - x
+            elif cm.mollweide:
+                x -= np.pi
+                y = np.pi/2 - y
+            if cm.polar or cm.meridional:
+                if r_pad is None:
+                    r_pad = (0, 1)
+                y = np.pad(y, ((1,1)), mode='constant', constant_values=r_pad)
+            if cm.ortho:
+                y *= 180/np.pi
+                x *= 180/np.pi
+                x -= 180
+                y -= 90
+            cm.yy, cm.xx = np.meshgrid(y, x)
+
+    def _modify_field(self, field, cm):
+        #Subtract out m = 0
+        if cm.remove_mean:
+            field -= np.mean(field)
+        elif cm.remove_x_mean:
+            field -= np.mean(field, axis=0)
+        elif cm.remove_y_mean:
+            field -= np.mean(field, axis=1)
+
+        #Scale by magnitude of m = 0
+        if cm.divide_x_mean:
+            field /= np.mean(np.abs(field), axis=0)
+
+        if cm.meridional:
+            field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
+        elif cm.polar:
+            field = np.pad(field, ((0, 0), (1, 0)), mode='edge')
+
+        if cm.log: 
+            field = np.log10(np.abs(field))
+
+        return field
+
+    def plot_colormeshes(self, start_fig=1, dpi=200, r_pad=None):
         """
         Plot figures of the 2D dedalus data slices at each timestep.
 
@@ -128,7 +175,7 @@ class SlicePlotter(SingleTypeReader):
                 The number in the filename for the first write.
             dpi (int) :
                 The pixel density of the output image
-            r_pad (tuple of ints) :
+            r_pad (2-tuple of ints) :
                 Padding values for the radial grid of polar plots            
         """
         with self.my_sync:
@@ -139,6 +186,7 @@ class SlicePlotter(SingleTypeReader):
                     tasks.append(cm.field)
             if self.idle: return
 
+            first = True
             while self.writes_remain():
                 if self.reader.global_comm.rank == 0:
                     print('writing plot {}/{} on process 0'.format(self.current_write+1, self.writes))
@@ -146,27 +194,8 @@ class SlicePlotter(SingleTypeReader):
                 dsets, ni = self.get_dsets(tasks)
                 time_data = dsets[self.colormeshes[0].field].dims[0]
 
-                for cm in self.colormeshes:
-                    x = match_basis(dsets[cm.field], cm.x_basis)
-                    y = match_basis(dsets[cm.field], cm.y_basis)
-                    if cm.polar:
-                        x = np.append(x, 2*np.pi)
-                    elif cm.meridional:
-                        x = np.pad(x, ((1,1)), mode='constant', constant_values=(np.pi,0))
-                        x = np.pi/2 - x
-                    elif cm.mollweide:
-                        x -= np.pi
-                        y = np.pi/2 - y
-                    if cm.polar or cm.meridional:
-                        y = np.pad(y, ((1,1)), mode='constant', constant_values=r_pad)
-
-                    if cm.ortho:
-                        y *= 180/np.pi
-                        x *= 180/np.pi
-                        x -= 180
-                        y -= 90
-                    cm.yy, cm.xx = np.meshgrid(y, x)
-
+                if first:
+                    self._get_pcolormesh_coordinates(dsets, r_pad=r_pad)
 
                 for k, cm in enumerate(self.colormeshes):
                     field = np.squeeze(dsets[cm.field][ni,:])
@@ -175,31 +204,9 @@ class SlicePlotter(SingleTypeReader):
                         field = field[vector_ind,:]
                     xx, yy = cm.xx, cm.yy
 
-                    #Subtract out m = 0
-                    if cm.remove_mean:
-                        field -= np.mean(field)
-                    elif cm.remove_x_mean:
-                        field -= np.mean(field, axis=0)
-                    elif cm.remove_y_mean:
-                        field -= np.mean(field, axis=1)
+                    field = self._modify_field(field, cm)
 
-                    #Scale by magnitude of m = 0
-                    if cm.divide_x_mean:
-                        field /= np.mean(np.abs(field), axis=0)
-
-                    if cm.meridional:
-                        field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
-                    elif cm.polar:
-                        field = np.pad(field, ((0, 0), (1, 0)), mode='edge')
-
-                    if cm.polar or cm.meridional:
-                        axs[k].set_xticks([])
-                        axs[k].set_yticks([])
-                        axs[k].set_aspect(1)
-
-                    if cm.log: 
-                        field = np.log10(np.abs(field))
-
+                    # Get colormap bounds
                     vals = np.sort(field.flatten())
                     if cm.pos_def:
                         vals = np.sort(vals)
@@ -217,13 +224,15 @@ class SlicePlotter(SingleTypeReader):
                     if cm.vmax is not None:
                         vmax = cm.vmax
 
+                    # Plot up colormap
                     if cm.ortho:
                         import cartopy.crs as ccrs
                         plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True, transform=ccrs.PlateCarree())
                         axs[k].gridlines()#draw_labels=True, dms=True, x_inline=False, y_inline=False)
-
                     else:
                         plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True)
+
+                    # Add and setup colorbar & label
                     cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
                     cb.solids.set_rasterized(True)
                     cb.set_ticks((vmin, vmax))
@@ -238,7 +247,11 @@ class SlicePlotter(SingleTypeReader):
                     else:
                         caxs[k].text(0.5, 0.5, '{:s}'.format(cm.label), transform=caxs[k].transAxes, va='center', ha='center')
 
-                    if cm.mollweide:
+                    if cm.polar or cm.meridional:
+                        axs[k].set_xticks([])
+                        axs[k].set_yticks([])
+                        axs[k].set_aspect(1)
+                    elif cm.mollweide:
                         axs[k].yaxis.set_major_locator(plt.NullLocator())
                         axs[k].xaxis.set_major_formatter(plt.NullFormatter())
 
@@ -246,4 +259,5 @@ class SlicePlotter(SingleTypeReader):
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
                 for ax in axs: ax.clear()
                 for cax in caxs: cax.clear()
+                first = False
 
