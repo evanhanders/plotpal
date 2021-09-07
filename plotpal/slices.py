@@ -329,6 +329,13 @@ class SlicePlotter(SingleTypeReader):
             self.colormeshes.append((self.counter, MeridionalColormesh(right, **kwargs)))
         self.counter += 1
 
+    def add_ball_shell_polar_colormesh(self, ball=None, shell=None, r_inner=None, r_outer=None, **kwargs):
+        if ball is not None:
+            self.colormeshes.append((self.counter, PolarColormesh(ball, r_inner=0, r_outer=r_inner, **kwargs)))
+        if shell is not None:
+            self.colormeshes.append((self.counter, PolarColormesh(shell, r_inner=r_inner, r_outer=r_outer, **kwargs)))
+        self.counter += 1
+
     def _groom_grid(self):
         """ Assign colormeshes to axes subplots in the plot grid """
         axs, caxs = [], []
