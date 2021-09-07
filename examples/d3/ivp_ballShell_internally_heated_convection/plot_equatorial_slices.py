@@ -53,6 +53,5 @@ plotter_kwargs = { 'col_in' : int(args['--col_inch']), 'row_in' : int(args['--ro
 # remove_x_mean option removes the (numpy horizontal mean) over phi
 # divide_x_mean divides the radial mean(abs(T eq)) over the phi direction
 plotter.setup_grid(1, 1, polar=True, **plotter_kwargs)
-#plotter.add_polar_colormesh('TS eq', azimuth_basis='phi', radial_basis='r', remove_x_mean=True, divide_x_mean=True, r_inner=r_inner, r_outer=r_outer)
 plotter.add_ball_shell_polar_colormesh(ball='TB eq', shell='TS eq', azimuth_basis='phi', radial_basis='r', remove_x_mean=True, divide_x_mean=True, r_inner=r_inner, r_outer=r_outer)
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))
