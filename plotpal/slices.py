@@ -232,7 +232,7 @@ class OrthographicColormesh(Colormesh):
 
 class MeridionalColormesh(Colormesh):
 
-    def __init__(self, field, colatitude_basis='theta', radial_basis='r', r_inner=None, r_outer=None, **kwargs):
+    def __init__(self, field, colatitude_basis='theta', radial_basis='r', r_inner=None, r_outer=None, left=False, **kwargs):
         super().__init__(field, x_basis=colatitude_basis, y_basis=radial_basis, **kwargs)
         self.radial_basis = self.y_basis
         self.colatitude_basis = self.x_basis
@@ -241,6 +241,7 @@ class MeridionalColormesh(Colormesh):
         if r_outer is None:
             r_outer = 1
         self.r_pad = (r_inner, r_outer)
+        self.left = left
 
     def _modify_field(self, field):
         field = super()._modify_field(field)
@@ -251,7 +252,11 @@ class MeridionalColormesh(Colormesh):
         x = theta = match_basis(dset, self.colatitude_basis)
         y = r     = match_basis(dset, self.radial_basis)
         theta = np.pad(theta, ((1,1)), mode='constant', constant_values=(np.pi,0))
-        theta = np.pi/2 - theta
+        if self.left:
+            theta = np.pi/2 + theta
+        else:
+            #right side
+            theta = np.pi/2 - theta
         r = np.pad(r, ((1,1)), mode='constant', constant_values=self.r_pad)
         self.yy, self.xx = np.meshgrid(r, theta)
 
@@ -261,7 +266,6 @@ class MeridionalColormesh(Colormesh):
         ax.set_yticks([])
         ax.set_aspect(1)
         return plot, cb
-
 
 
 class SlicePlotter(SingleTypeReader):
@@ -288,6 +292,7 @@ class SlicePlotter(SingleTypeReader):
         """
         self.grid = None
         super(SlicePlotter, self).__init__(*args, distribution='even-write', **kwargs)
+        self.counter = 0
         self.colormeshes = []
 
     def setup_grid(self, *args, **kwargs):
@@ -298,22 +303,31 @@ class SlicePlotter(SingleTypeReader):
         self.grid = custom_grid
 
     def add_colormesh(self, *args, **kwargs):
-        self.colormeshes.append(Colormesh(*args, **kwargs))
+        self.colormeshes.append((self.counter, Colormesh(*args, **kwargs)))
+        self.counter += 1
 
     def add_cartesian_colormesh(self, *args, **kwargs):
-        self.colormeshes.append(CartesianColormesh(*args, **kwargs))
+        self.colormeshes.append((self.counter, CartesianColormesh(*args, **kwargs)))
+        self.counter += 1
 
     def add_polar_colormesh(self, *args, **kwargs):
-        self.colormeshes.append(PolarColormesh(*args, **kwargs))
+        self.colormeshes.append((self.counter, PolarColormesh(*args, **kwargs)))
+        self.counter += 1
 
     def add_mollweide_colormesh(self, *args, **kwargs):
-        self.colormeshes.append(MollweideColormesh(*args, **kwargs))
+        self.colormeshes.append((self.counter, MollweideColormesh(*args, **kwargs)))
+        self.counter += 1
 
     def add_orthographic_colormesh(self, *args, **kwargs):
-        self.colormeshes.append(OrthographicColormesh(*args, **kwargs))
+        self.colormeshes.append((self.counter, OrthographicColormesh(*args, **kwargs)))
+        self.counter += 1
 
-    def add_meridional_colormesh(self, *args, **kwargs):
-        self.colormeshes.append(MeridionalColormesh(*args, **kwargs))
+    def add_meridional_colormesh(self, left=None, right=None, **kwargs):
+        if left is not None:
+            self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **kwargs)))
+        if right is not None:
+            self.colormeshes.append((self.counter, MeridionalColormesh(right, **kwargs)))
+        self.counter += 1
 
     def _groom_grid(self):
         """ Assign colormeshes to axes subplots in the plot grid """
@@ -341,7 +355,7 @@ class SlicePlotter(SingleTypeReader):
         with self.my_sync:
             axs, caxs = self._groom_grid()
             tasks = []
-            for cm in self.colormeshes:
+            for k, cm in self.colormeshes:
                 if cm.task not in tasks:
                     tasks.append(cm.task)
             if self.idle: return
@@ -351,9 +365,9 @@ class SlicePlotter(SingleTypeReader):
                     print('writing plot {}/{} on process 0'.format(self.current_write+1, self.writes))
                     stdout.flush()
                 dsets, ni = self.get_dsets(tasks)
-                time_data = dsets[self.colormeshes[0].task].dims[0]
+                time_data = dsets[self.colormeshes[0][1].task].dims[0]
 
-                for k, cm in enumerate(self.colormeshes):
+                for k, cm in self.colormeshes:
                     ax = axs[k]
                     cax = caxs[k]
                     cm.plot_colormesh(ax, cax, dsets[cm.task], ni, **kwargs)
