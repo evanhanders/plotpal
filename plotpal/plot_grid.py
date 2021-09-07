@@ -41,7 +41,7 @@ class PlotGrid:
             The width and height of the figure in inches
     """
 
-    def __init__(self, nrows, ncols, padding=50, col_in=3, row_in=3, polar=False, mollweide=False, ortho=False):
+    def __init__(self, nrows, ncols, padding=50, col_in=3, row_in=3, polar=False, mollweide=False, orthographic=False):
         """
         Initialize and create the plot grid.
 
@@ -56,7 +56,7 @@ class PlotGrid:
                 If True, make a polar projection
             mollweide (bool) :
                 If True, make a mollweide projection
-            ortho (bool) :
+            orthographic (bool) :
                 If True, make an ortographic projection
         """
         self.nrows     = nrows
@@ -72,9 +72,12 @@ class PlotGrid:
         self.subplot_kwargs = {'polar' : polar}
         if mollweide:
             self.subplot_kwargs['projection'] = 'mollweide'
-        elif ortho:
-            import cartopy.crs as ccrs
-            self.subplot_kwargs['projection'] = ccrs.Orthographic(180, 45)
+        elif orthographic:
+            try:
+                import cartopy.crs as ccrs
+                self.subplot_kwargs['projection'] = ccrs.Orthographic(180, 45)
+            except:
+                raise ImportError("Cartopy must be installed for orthographic projections in plotpal")
         self._make_subplots()
 
 

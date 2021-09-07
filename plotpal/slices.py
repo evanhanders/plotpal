@@ -23,7 +23,7 @@ class Colormesh:
     A struct containing information about a slice colormesh plot
 
     # Attributes
-        field (str) :
+        task (str) :
             The profile task name
         x_basis, y_basis (strs) :
             The dedalus basis names that the profile spans in the x- and y- direction of the plot
@@ -39,41 +39,229 @@ class Colormesh:
             The matplotlib colormap to plot the colormesh with
         pos_def (bool) :
             If True, profile is positive definite and colormap should span from max/min to zero.
-        polar (bool) :
-            If True, plot a polar map from 0->2*pi.
-        meridional (bool) :
-            If True, plot a meridional map from 0->pi
-        mollweide (bool) :
-            If True, plot a mollweide projection
         label (str):
             A label for the colorbar
 
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, \
+    def __init__(self, task, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, \
                               remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', \
-                              pos_def=False, polar=False, meridional=False, mollweide=False, \
-                              ortho=False, vmin=None, vmax=None, log=False, vector_ind=None, \
+                              pos_def=False, \
+                              vmin=None, vmax=None, log=False, vector_ind=None, \
                               label=None):
-        self.field = field
+        self.task = task
         self.x_basis = x_basis
         self.y_basis = y_basis
+        self.vector_ind = vector_ind
+
         self.remove_mean = remove_mean
         self.remove_x_mean = remove_x_mean
         self.remove_y_mean = remove_y_mean
         self.divide_x_mean = divide_x_mean
-        self.cmap = cmap
+        self.log  = log
+
         self.pos_def = pos_def
-        self.xx, self.yy = None, None
-        self.polar = polar
-        self.meridional = meridional
-        self.mollweide  = mollweide
-        self.ortho      = ortho
         self.vmin = vmin
         self.vmax = vmax
-        self.log  = log
-        self.vector_ind = vector_ind
+
+        self.cmap = cmap
         self.label = label
+
+        self.first = True
+        self.xx, self.yy = None, None
+
+    def _modify_field(self, field):
+        #Subtract out m = 0
+        if self.remove_mean:
+            field -= np.mean(field)
+        elif self.remove_x_mean:
+            field -= np.mean(field, axis=0)
+        elif self.remove_y_mean:
+            field -= np.mean(field, axis=1)
+
+        #Scale by magnitude of m = 0
+        if self.divide_x_mean:
+            field /= np.mean(np.abs(field), axis=0)
+
+        if self.log: 
+            field = np.log10(np.abs(field))
+
+        return field
+
+    def _get_minmax(self, field):
+        # Get colormap bounds
+        vals = np.sort(field.flatten())
+        if self.pos_def:
+            vals = np.sort(vals)
+            if np.mean(vals) < 0:
+                vmin, vmax = vals[int(0.002*len(vals))], 0
+            else:
+                vmin, vmax = 0, vals[int(0.998*len(vals))]
+        else:
+            vals = np.sort(np.abs(vals))
+            vmax = vals[int(0.998*len(vals))]
+            vmin = -vmax
+
+        if self.vmin is not None:
+            vmin = self.vmin
+        if self.vmax is not None:
+            vmax = self.vmax
+
+        return vmin, vmax
+
+    def _get_pcolormesh_coordinates(self, dset):
+        x = match_basis(dset, self.x_basis)
+        y = match_basis(dset, self.y_basis)
+        self.yy, self.xx = np.meshgrid(y, x)
+
+    def _setup_colorbar(self, plot, cax, vmin, vmax):
+        # Add and setup colorbar & label
+        cb = plt.colorbar(plot, cax=cax, orientation='horizontal')
+        cb.solids.set_rasterized(True)
+        cb.set_ticks((vmin, vmax))
+        cax.tick_params(direction='in', pad=1)
+        cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
+        cax.xaxis.set_ticks_position('bottom')
+        if self.label is None:
+            if self.vector_ind is not None:
+                cax.text(0.5, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='center')
+            else:
+                cax.text(0.5, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='center')
+        else:
+            cax.text(0.5, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='center')
+        return cb
+
+    def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
+        if self.first:
+            self._get_pcolormesh_coordinates(dset)
+
+        field = np.squeeze(dset[ni,:])
+        vector_ind = self.vector_ind
+        if vector_ind is not None:
+            field = field[vector_ind,:]
+
+        field = self._modify_field(field)
+        vmin, vmax = self._get_minmax(field)
+
+        plot = ax.pcolormesh(self.xx, self.yy, field, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs)
+        cb = self._setup_colorbar(plot, cax, vmin, vmax)
+        self.first = False
+        return plot, cb
+
+CartesianColormesh = Colormesh
+
+class PolarColormesh(Colormesh):
+
+    def __init__(self, field, azimuth_basis='phi', radial_basis='r', r_inner=None, r_outer=None, **kwargs):
+        super().__init__(field, x_basis=azimuth_basis, y_basis=radial_basis, **kwargs)
+        self.radial_basis = self.y_basis
+        self.azimuth_basis = self.x_basis
+        if r_inner is None:
+            r_inner = 0
+        if r_outer is None:
+            r_outer = 1
+        self.r_pad = (r_inner, r_outer)
+
+    def _modify_field(self, field):
+        field = super()._modify_field(field)
+        field = np.pad(field, ((0, 0), (1, 0)), mode='edge')
+        return field
+
+    def _get_pcolormesh_coordinates(self, dset):
+        x = phi = match_basis(dset, self.azimuth_basis)
+        y = r   = match_basis(dset, self.radial_basis)
+        phi = np.append(x, 2*np.pi)
+        r = np.pad(r, ((1,1)), mode='constant', constant_values=self.r_pad)
+        self.yy, self.xx = np.meshgrid(r, phi)
+
+    def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
+        plot, cb = super().plot_colormesh(ax, cax, dset, ni, **kwargs)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_aspect(1)
+        return plot, cb
+
+
+class MollweideColormesh(Colormesh):
+
+    def __init__(self, field, azimuth_basis='phi', colatitude_basis='theta', **kwargs):
+        super().__init__(field, x_basis=azimuth_basis, y_basis=colatitude_basis, **kwargs)
+        self.colatitude_basis = self.y_basis
+        self.azimuth_basis = self.x_basis
+
+    def _get_pcolormesh_coordinates(self, dset):
+        x = phi = match_basis(dset, self.azimuth_basis)
+        y = theta = match_basis(dset, self.colatitude_basis)
+        phi -= np.pi
+        theta = np.pi/2 - theta
+        self.yy, self.xx = np.meshgrid(theta, phi)
+
+    def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
+        plot, cb = super().plot_colormesh(ax, cax, dset, ni, **kwargs)
+        ax.yaxis.set_major_locator(plt.NullLocator())
+        ax.xaxis.set_major_formatter(plt.NullFormatter())
+        return plot, cb
+
+
+class OrthographicColormesh(Colormesh):
+
+    def __init__(self, field, azimuth_basis='phi', colatitude_basis='theta', **kwargs):
+        super().__init__(field, x_basis=azimuth_basis, y_basis=colatitude_basis, **kwargs)
+        self.colatitude_basis = self.y_basis
+        self.azimuth_basis = self.x_basis
+        try:
+            import cartopy.crs as ccrs
+            self.transform = ccrs.PlateCarree()
+        except:
+            raise ImportError("Cartopy must be installed for plotpal Orthographic plots")
+
+    def _get_pcolormesh_coordinates(self, dset):
+        x = phi = match_basis(dset, self.azimuth_basis)
+        y = theta = match_basis(dset, self.colatitude_basis)
+        phi *= 180/np.pi
+        theta *= 180/np.pi
+        phi -= 180
+        theta -= 90
+        self.yy, self.xx = np.meshgrid(theta, phi)
+
+    def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
+        plot, cb = super().plot_colormesh(ax, cax, dset, ni, transform = self.transform, **kwargs)
+        ax.gridlines()
+        return plot, cb
+
+
+class MeridionalColormesh(Colormesh):
+
+    def __init__(self, field, colatitude_basis='theta', radial_basis='r', r_inner=None, r_outer=None, **kwargs):
+        super().__init__(field, x_basis=colatitude_basis, y_basis=radial_basis, **kwargs)
+        self.radial_basis = self.y_basis
+        self.colatitude_basis = self.x_basis
+        if r_inner is None:
+            r_inner = 0
+        if r_outer is None:
+            r_outer = 1
+        self.r_pad = (r_inner, r_outer)
+
+    def _modify_field(self, field):
+        field = super()._modify_field(field)
+        field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
+        return field
+
+    def _get_pcolormesh_coordinates(self, dset):
+        x = theta = match_basis(dset, self.colatitude_basis)
+        y = r     = match_basis(dset, self.radial_basis)
+        theta = np.pad(theta, ((1,1)), mode='constant', constant_values=(np.pi,0))
+        theta = np.pi/2 - theta
+        r = np.pad(r, ((1,1)), mode='constant', constant_values=self.r_pad)
+        self.yy, self.xx = np.meshgrid(r, theta)
+
+    def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
+        plot, cb = super().plot_colormesh(ax, cax, dset, ni, **kwargs)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_aspect(1)
+        return plot, cb
+
 
 
 class SlicePlotter(SingleTypeReader):
@@ -110,8 +298,22 @@ class SlicePlotter(SingleTypeReader):
         self.grid = custom_grid
 
     def add_colormesh(self, *args, **kwargs):
-        """ Add a colormesh to the list of meshes to plot """
         self.colormeshes.append(Colormesh(*args, **kwargs))
+
+    def add_cartesian_colormesh(self, *args, **kwargs):
+        self.colormeshes.append(CartesianColormesh(*args, **kwargs))
+
+    def add_polar_colormesh(self, *args, **kwargs):
+        self.colormeshes.append(PolarColormesh(*args, **kwargs))
+
+    def add_mollweide_colormesh(self, *args, **kwargs):
+        self.colormeshes.append(MollweideColormesh(*args, **kwargs))
+
+    def add_orthographic_colormesh(self, *args, **kwargs):
+        self.colormeshes.append(OrthographicColormesh(*args, **kwargs))
+
+    def add_meridional_colormesh(self, *args, **kwargs):
+        self.colormeshes.append(MeridionalColormesh(*args, **kwargs))
 
     def _groom_grid(self):
         """ Assign colormeshes to axes subplots in the plot grid """
@@ -124,53 +326,7 @@ class SlicePlotter(SingleTypeReader):
                     caxs.append(self.grid.cbar_axes[k])
         return axs, caxs
 
-    def _get_pcolormesh_coordinates(self, dsets, r_pad=None):
-        for cm in self.colormeshes:
-            x = match_basis(dsets[cm.field], cm.x_basis)
-            y = match_basis(dsets[cm.field], cm.y_basis)
-            if cm.polar:
-                x = np.append(x, 2*np.pi)
-            elif cm.meridional:
-                x = np.pad(x, ((1,1)), mode='constant', constant_values=(np.pi,0))
-                x = np.pi/2 - x
-            elif cm.mollweide:
-                x -= np.pi
-                y = np.pi/2 - y
-            if cm.polar or cm.meridional:
-                if r_pad is None:
-                    r_pad = (0, 1)
-                y = np.pad(y, ((1,1)), mode='constant', constant_values=r_pad)
-            if cm.ortho:
-                y *= 180/np.pi
-                x *= 180/np.pi
-                x -= 180
-                y -= 90
-            cm.yy, cm.xx = np.meshgrid(y, x)
-
-    def _modify_field(self, field, cm):
-        #Subtract out m = 0
-        if cm.remove_mean:
-            field -= np.mean(field)
-        elif cm.remove_x_mean:
-            field -= np.mean(field, axis=0)
-        elif cm.remove_y_mean:
-            field -= np.mean(field, axis=1)
-
-        #Scale by magnitude of m = 0
-        if cm.divide_x_mean:
-            field /= np.mean(np.abs(field), axis=0)
-
-        if cm.meridional:
-            field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
-        elif cm.polar:
-            field = np.pad(field, ((0, 0), (1, 0)), mode='edge')
-
-        if cm.log: 
-            field = np.log10(np.abs(field))
-
-        return field
-
-    def plot_colormeshes(self, start_fig=1, dpi=200, r_pad=None):
+    def plot_colormeshes(self, start_fig=1, dpi=200, **kwargs):
         """
         Plot figures of the 2D dedalus data slices at each timestep.
 
@@ -179,89 +335,31 @@ class SlicePlotter(SingleTypeReader):
                 The number in the filename for the first write.
             dpi (int) :
                 The pixel density of the output image
-            r_pad (2-tuple of ints) :
-                Padding values for the radial grid of polar plots            
+            kwargs :
+                extra keyword args for matplotlib.pyplot.pcolormesh
         """
         with self.my_sync:
             axs, caxs = self._groom_grid()
             tasks = []
             for cm in self.colormeshes:
-                if cm.field not in tasks:
-                    tasks.append(cm.field)
+                if cm.task not in tasks:
+                    tasks.append(cm.task)
             if self.idle: return
 
-            first = True
             while self.writes_remain():
                 if self.reader.global_comm.rank == 0:
                     print('writing plot {}/{} on process 0'.format(self.current_write+1, self.writes))
                     stdout.flush()
                 dsets, ni = self.get_dsets(tasks)
-                time_data = dsets[self.colormeshes[0].field].dims[0]
-
-                if first:
-                    self._get_pcolormesh_coordinates(dsets, r_pad=r_pad)
+                time_data = dsets[self.colormeshes[0].task].dims[0]
 
                 for k, cm in enumerate(self.colormeshes):
-                    field = np.squeeze(dsets[cm.field][ni,:])
-                    vector_ind = cm.vector_ind
-                    if vector_ind is not None:
-                        field = field[vector_ind,:]
-                    xx, yy = cm.xx, cm.yy
-
-                    field = self._modify_field(field, cm)
-
-                    # Get colormap bounds
-                    vals = np.sort(field.flatten())
-                    if cm.pos_def:
-                        vals = np.sort(vals)
-                        if np.mean(vals) < 0:
-                            vmin, vmax = vals[int(0.002*len(vals))], 0
-                        else:
-                            vmin, vmax = 0, vals[int(0.998*len(vals))]
-                    else:
-                        vals = np.sort(np.abs(vals))
-                        vmax = vals[int(0.998*len(vals))]
-                        vmin = -vmax
-
-                    if cm.vmin is not None:
-                        vmin = cm.vmin
-                    if cm.vmax is not None:
-                        vmax = cm.vmax
-
-                    # Plot up colormap
-                    if cm.ortho:
-                        import cartopy.crs as ccrs
-                        plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True, transform=ccrs.PlateCarree())
-                        axs[k].gridlines()#draw_labels=True, dms=True, x_inline=False, y_inline=False)
-                    else:
-                        plot = axs[k].pcolormesh(xx, yy, field, cmap=cm.cmap, vmin=vmin, vmax=vmax, rasterized=True)
-
-                    # Add and setup colorbar & label
-                    cb = plt.colorbar(plot, cax=caxs[k], orientation='horizontal')
-                    cb.solids.set_rasterized(True)
-                    cb.set_ticks((vmin, vmax))
-                    caxs[k].tick_params(direction='in', pad=1)
-                    cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
-                    caxs[k].xaxis.set_ticks_position('bottom')
-                    if cm.label is None:
-                        if vector_ind is not None:
-                            caxs[k].text(0.5, 0.5, '{:s}[{}]'.format(cm.field, vector_ind), transform=caxs[k].transAxes, va='center', ha='center')
-                        else:
-                            caxs[k].text(0.5, 0.5, '{:s}'.format(cm.field), transform=caxs[k].transAxes, va='center', ha='center')
-                    else:
-                        caxs[k].text(0.5, 0.5, '{:s}'.format(cm.label), transform=caxs[k].transAxes, va='center', ha='center')
-
-                    if cm.polar or cm.meridional:
-                        axs[k].set_xticks([])
-                        axs[k].set_yticks([])
-                        axs[k].set_aspect(1)
-                    elif cm.mollweide:
-                        axs[k].yaxis.set_major_locator(plt.NullLocator())
-                        axs[k].xaxis.set_major_formatter(plt.NullFormatter())
+                    ax = axs[k]
+                    cax = caxs[k]
+                    cm.plot_colormesh(ax, cax, dsets[cm.task], ni, **kwargs)
 
                 plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
                 for ax in axs: ax.clear()
                 for cax in caxs: cax.clear()
-                first = False
 
