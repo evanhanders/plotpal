@@ -99,7 +99,16 @@ class FileReader:
                     self.idle[k] = True
             elif distribution.lower() == 'even-write':
                 self.file_starts[k], self.file_counts[k] = post.get_assigned_writes(files)
-                self.comms[k] = self.global_comm
+                writes_per = np.ceil(np.sum(writes)/self.global_comm.size)
+                num_procs = int(np.ceil(np.sum(writes) / writes_per))
+                if num_procs == self.global_comm.size:
+                    self.comms[k] = self.global_comm
+                else:
+                    if self.global_comm.rank < num_procs:
+                        self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(num_procs)))
+                    else:
+                        self.comms[k] = MPI.COMM_SELF
+                        self.idle[k] = True
             elif distribution.lower() == 'even-file':
                 self.file_starts[k] = np.copy(writes)
                 self.file_counts[k] = np.zeros_like(writes)
@@ -167,19 +176,21 @@ class SingleTypeReader():
         self.starts = self.reader.file_starts[file_dir]
         self.counts = self.reader.file_counts[file_dir]
         self.writes = np.sum(self.counts)
+        print(self.writes, self.counts)
 
-        file_num = []
-        local_indices = []
-        for i, c in enumerate(self.counts):
-            if c > 0:
-                local_indices.append(np.arange(c, dtype=np.int64) + self.starts[i])
-                file_num.append(i*np.ones(c, dtype=np.int64))
-        self.file_index = np.concatenate(local_indices, dtype=np.int64)
-        self.file_num   = np.concatenate(file_num, dtype=np.int64)
+        if not self.idle:
+            file_num = []
+            local_indices = []
+            for i, c in enumerate(self.counts):
+                if c > 0:
+                    local_indices.append(np.arange(c, dtype=np.int64) + self.starts[i])
+                    file_num.append(i*np.ones(c, dtype=np.int64))
+            self.file_index = np.concatenate(local_indices, dtype=np.int64)
+            self.file_num   = np.concatenate(file_num, dtype=np.int64)
 
-        self.current_write = -1
-        self.current_file_handle = None
-        self.current_file_number = None
+            self.current_write = -1
+            self.current_file_handle = None
+            self.current_file_number = None
 
     def writes_remain(self):
         """ 
@@ -187,30 +198,32 @@ class SingleTypeReader():
             Returns False if there are no writes left and True if a write is found.
             For use in a while statement (e.g., while writes_remain(): do stuff).
         """
-        if self.current_write >= self.writes - 1:
-            self.current_write = -1
-            self.current_file_handle.close()
-            self.current_file_handle = None
-            self.current_file_number = None
-            return False
-        else:
-            self.current_write += 1
-            next_file_number = self.file_num[self.current_write]
-            if self.current_file_number is None:
-                #First iter
-                self.current_file_number = next_file_number
-                self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
-            elif self.current_file_number != next_file_number:
+        if not self.idle:
+            if self.current_write >= self.writes - 1:
+                self.current_write = -1
                 self.current_file_handle.close()
-                self.current_file_number = next_file_number
-                self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
-            return True
+                self.current_file_handle = None
+                self.current_file_number = None
+                return False
+            else:
+                self.current_write += 1
+                next_file_number = self.file_num[self.current_write]
+                if self.current_file_number is None:
+                    #First iter
+                    self.current_file_number = next_file_number
+                    self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+                elif self.current_file_number != next_file_number:
+                    self.current_file_handle.close()
+                    self.current_file_number = next_file_number
+                    self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+                return True
 
     def get_dsets(self, tasks):
         """ Given a list of task strings, returns a dictionary of the associated datasets. """
-        output = OrderedDict()
-        f = self.current_file_handle
-        for k in tasks:
-            output[k] = f['tasks/{}'.format(k)]
-        return output, self.file_index[self.current_write]
-            
+        if not self.idle:
+            output = OrderedDict()
+            f = self.current_file_handle
+            for k in tasks:
+                output[k] = f['tasks/{}'.format(k)]
+            return output, self.file_index[self.current_write]
+                
