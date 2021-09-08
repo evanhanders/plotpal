@@ -37,10 +37,10 @@ if n_files is not None:
 
 # Create Plotter object, tell it which fields to plot
 plotter = SlicePlotter(root_dir, file_dir=data_dir, fig_name=fig_name, start_file=start_file, n_files=n_files)
-plotter_kwargs = { 'col_in' : int(args['--col_inch']), 'row_in' : int(args['--row_inch']) }
+plotter_kwargs = { 'col_inch' : int(args['--col_inch']), 'row_inch' : int(args['--row_inch']) }
 
 # Just plot a single plot (1x1 grid) of the field "T (r=0.5)"
 # remove_mean option removes the numpy mean of the data
-plotter.setup_grid(1, 1, orthographic=True, **plotter_kwargs)
+plotter.setup_grid(num_cols=1, num_rows=1, orthographic=True, **plotter_kwargs)
 plotter.add_orthographic_colormesh('T r=0.5', azimuth_basis='phi', colatitude_basis='theta', remove_mean=True)
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))

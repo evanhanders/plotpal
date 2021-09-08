@@ -1,12 +1,12 @@
 """
-This script plots snapshots of the evolution of a 2D slice of an S2 surface using a Mollweide projection.
+This script plots snapshots of the evolution of a 2D slice through the equator of a BallBasis simulation.
 
 Usage:
-    plot_mollweide_slices.py <root_dir> [options]
+    plot_full_slices.py <root_dir> --radius=<r> [options]
 
 Options:
     --data_dir=<dir>                    Name of data handler directory [default: slices]
-    --fig_name=<fig_name>               Name of figure output directory & base name of saved figures [default: snapshots_mollweide]
+    --fig_name=<fig_name>               Name of figure output directory & base name of saved figures [default: snapshots_full]
     --start_fig=<fig_start_num>         Number of first figure file [default: 1]
     --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
     --n_files=<num_files>               Total number of files to plot
@@ -18,6 +18,7 @@ Options:
 from docopt import docopt
 args = docopt(__doc__)
 from plotpal.slices import SlicePlotter
+from plotpal.plot_grid import PlotGrid
 
 # Read in master output directory
 root_dir    = args['<root_dir>']
@@ -35,12 +36,20 @@ n_files     = args['--n_files']
 if n_files is not None: 
     n_files = int(n_files)
 
+radius = float(args['--radius'])
+
 # Create Plotter object, tell it which fields to plot
 plotter = SlicePlotter(root_dir, file_dir=data_dir, fig_name=fig_name, start_file=start_file, n_files=n_files)
-plotter_kwargs = { 'col_inch' : int(args['--col_inch']), 'row_inch' : int(args['--row_inch']) }
+grid = PlotGrid(col_inch=int(args['--col_inch']), row_inch=int(args['--row_inch']), pad_factor=10)
+grid.add_axis(row_num=0, col_num=0, cbar=True, orthographic=True)
+grid.add_axis(row_num=0, col_num=1, cbar=True, mollweide=True)
+grid.add_axis(row_num=1, col_num=0, cbar=True, polar=True)
+grid.add_axis(row_num=1, col_num=1, cbar=True, polar=True)
+grid.make_subplots()
+plotter.use_custom_grid(grid)
 
-# Just plot a single plot (1x1 grid) of the field "T (r=0.5)"
-# remove_mean option removes the numpy mean of the data
-plotter.setup_grid(num_cols=1, num_rows=1, mollweide=True, **plotter_kwargs)
+plotter.add_orthographic_colormesh('T r=0.5', azimuth_basis='phi', colatitude_basis='theta', remove_mean=True)
 plotter.add_mollweide_colormesh('T r=0.5', azimuth_basis='phi', colatitude_basis='theta', remove_mean=True)
+plotter.add_polar_colormesh('T eq', azimuth_basis='phi', radial_basis='r', remove_x_mean=True, divide_x_mean=True, r_inner=0, r_outer=radius)
+plotter.add_meridional_colormesh(left='T mer left', right='T mer right', colatitude_basis='theta', radial_basis='r', remove_x_mean=False, r_inner=0, r_outer=radius, label='T mer')
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))

@@ -10,7 +10,7 @@ from sys import path
 from dedalus.tools.parallel import Sync
 
 from plotpal.file_reader import SingleTypeReader, match_basis
-from plotpal.plot_grid import ColorbarPlotGrid
+from plotpal.plot_grid import RegularColorbarPlotGrid
 
 import numpy as np
 
@@ -297,7 +297,7 @@ class SlicePlotter(SingleTypeReader):
 
     def setup_grid(self, *args, **kwargs):
         """ Initialize the plot grid for the colormeshes """
-        self.grid = ColorbarPlotGrid(*args, **kwargs)
+        self.grid = RegularColorbarPlotGrid(*args, **kwargs)
 
     def use_custom_grid(self, custom_grid):
         self.grid = custom_grid
@@ -324,7 +324,9 @@ class SlicePlotter(SingleTypeReader):
 
     def add_meridional_colormesh(self, left=None, right=None, **kwargs):
         if left is not None:
-            self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **kwargs)))
+            these_kwargs = kwargs.copy()
+            these_kwargs['label'] = ''
+            self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **these_kwargs)))
         if right is not None:
             self.colormeshes.append((self.counter, MeridionalColormesh(right, **kwargs)))
         self.counter += 1
@@ -341,7 +343,7 @@ class SlicePlotter(SingleTypeReader):
         axs, caxs = [], []
         for i in range(self.grid.ncols):
             for j in range(self.grid.nrows):
-                k = 'ax_{}-{}'.format(i,j)
+                k = 'ax_{}-{}'.format(j, i)
                 if k in self.grid.axes.keys():
                     axs.append(self.grid.axes[k])
                     caxs.append(self.grid.cbar_axes[k])

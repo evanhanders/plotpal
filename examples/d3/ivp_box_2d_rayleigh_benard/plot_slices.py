@@ -12,8 +12,8 @@ Options:
     --n_files=<num_files>               Total number of files to plot
     --dpi=<dpi>                         Image pixel density [default: 200]
 
-    --col_inch=<in>                     Number of inches / column [default: 3]
-    --row_inch=<in>                     Number of inches / row [default: 1.5]
+    --col_inch=<in>                     Number of inches / column [default: 4]
+    --row_inch=<in>                     Number of inches / row [default: 2]
 """
 from docopt import docopt
 args = docopt(__doc__)
@@ -37,11 +37,11 @@ if n_files is not None:
 
 # Create Plotter object, tell it which fields to plot
 plotter = SlicePlotter(root_dir, file_dir=data_dir, fig_name=fig_name, start_file=start_file, n_files=n_files)
-plotter_kwargs = { 'col_in' : float(args['--col_inch']), 'row_in' : float(args['--row_inch']) }
+plotter_kwargs = { 'col_inch' : float(args['--col_inch']), 'row_inch' : float(args['--row_inch']) }
 
 # Just plot a single plot (1x1 grid) of the field "b"
 # remove_x_mean option removes the (numpy horizontal mean) over phi
 # divide_x_mean divides the radial mean(abs(b)) over the x-direction
-plotter.setup_grid(1, 1, **plotter_kwargs)
+plotter.setup_grid(num_rows=1, num_cols=1, **plotter_kwargs)
 plotter.add_colormesh('b', x_basis='x', y_basis='z', remove_x_mean=True, divide_x_mean=True)
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))
