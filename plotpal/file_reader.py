@@ -176,7 +176,6 @@ class SingleTypeReader():
         self.starts = self.reader.file_starts[file_dir]
         self.counts = self.reader.file_counts[file_dir]
         self.writes = np.sum(self.counts)
-        print(self.writes, self.counts)
 
         if not self.idle:
             file_num = []
