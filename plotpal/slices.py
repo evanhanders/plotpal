@@ -48,7 +48,7 @@ class Colormesh:
                               remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', \
                               pos_def=False, \
                               vmin=None, vmax=None, log=False, vector_ind=None, \
-                              label=None):
+                              label=None, linked_cm=None):
         self.task = task
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -70,6 +70,8 @@ class Colormesh:
         self.first = True
         self.xx, self.yy = None, None
 
+        self.linked_cm = linked_cm
+
     def _modify_field(self, field):
         #Subtract out m = 0
         if self.remove_mean:
@@ -90,24 +92,28 @@ class Colormesh:
 
     def _get_minmax(self, field):
         # Get colormap bounds
-        vals = np.sort(field.flatten())
-        if self.pos_def:
-            vals = np.sort(vals)
-            if np.mean(vals) < 0:
-                vmin, vmax = vals[int(0.002*len(vals))], 0
-            else:
-                vmin, vmax = 0, vals[int(0.998*len(vals))]
+
+        if self.linked_cm is not None:
+            return self.linked_cm.current_vmin, self.linked_cm.current_vmax
         else:
-            vals = np.sort(np.abs(vals))
-            vmax = vals[int(0.998*len(vals))]
-            vmin = -vmax
+            vals = np.sort(field.flatten())
+            if self.pos_def:
+                vals = np.sort(vals)
+                if np.mean(vals) < 0:
+                    vmin, vmax = vals[int(0.002*len(vals))], 0
+                else:
+                    vmin, vmax = 0, vals[int(0.998*len(vals))]
+            else:
+                vals = np.sort(np.abs(vals))
+                vmax = vals[int(0.998*len(vals))]
+                vmin = -vmax
 
-        if self.vmin is not None:
-            vmin = self.vmin
-        if self.vmax is not None:
-            vmax = self.vmax
+            if self.vmin is not None:
+                vmin = self.vmin
+            if self.vmax is not None:
+                vmax = self.vmax
 
-        return vmin, vmax
+            return vmin, vmax
 
     def _get_pcolormesh_coordinates(self, dset):
         x = match_basis(dset, self.x_basis)
@@ -142,6 +148,7 @@ class Colormesh:
 
         field = self._modify_field(field)
         vmin, vmax = self._get_minmax(field)
+        self.current_vmin, self.current_vmax = vmin, vmax
 
         plot = ax.pcolormesh(self.xx, self.yy, field, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs)
         cb = self._setup_colorbar(plot, cax, vmin, vmax)
@@ -323,19 +330,17 @@ class SlicePlotter(SingleTypeReader):
         self.counter += 1
 
     def add_meridional_colormesh(self, left=None, right=None, **kwargs):
-        if left is not None:
+        if left is not None and right is not None:
             these_kwargs = kwargs.copy()
             these_kwargs['label'] = ''
             self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **these_kwargs)))
-        if right is not None:
-            self.colormeshes.append((self.counter, MeridionalColormesh(right, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(right, linked_cm=self.colormeshes[-1][1], **kwargs)))
         self.counter += 1
 
     def add_ball_shell_polar_colormesh(self, ball=None, shell=None, r_inner=None, r_outer=None, **kwargs):
-        if ball is not None:
+        if ball is not None and shell is not None:
             self.colormeshes.append((self.counter, PolarColormesh(ball, r_inner=0, r_outer=r_inner, **kwargs)))
-        if shell is not None:
-            self.colormeshes.append((self.counter, PolarColormesh(shell, r_inner=r_inner, r_outer=r_outer, **kwargs)))
+            self.colormeshes.append((self.counter, PolarColormesh(shell, r_inner=r_inner, r_outer=r_outer, linked_cm=self.colormeshes[-1][1], **kwargs)))
         self.counter += 1
 
     def _groom_grid(self):
