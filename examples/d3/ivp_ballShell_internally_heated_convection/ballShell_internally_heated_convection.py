@@ -141,34 +141,32 @@ shear_stress = ang(rad(strain_rateS(r=r_outer)))
 
 
 # Problem
-def eq_eval(eq_str):
-    return [eval(expr) for expr in d3.split_equation(eq_str)]
-problem = d3.IVP([pB, uB, TB, pS, uS, TS, tau_uB, tau_uS_bot, tau_TB, tau_TS_bot, tau_uS_top, tau_TS_top])
+problem = d3.IVP([pB, uB, TB, pS, uS, TS, tau_uB, tau_uS_bot, tau_TB, tau_TS_bot, tau_uS_top, tau_TS_top], namespace=locals())
 
 # Ball Eqns
-problem.add_equation(eq_eval("div(uB) = 0"))
-problem.add_equation(eq_eval("dt(uB) - nu*lap(uB) + grad(pB) - r_vecB*TB + liftB(tau_uB,-1) = - cross(curl(uB),uB)"))
-problem.add_equation(eq_eval("dt(TB) + dot(uB, grad_T0B) - kappa*lap(TB) + liftB(tau_TB,-1) = - dot(uB,grad(TB)) + kappa*T_source"))
+problem.add_equation("div(uB) = 0")
+problem.add_equation("dt(uB) - nu*lap(uB) + grad(pB) - r_vecB*TB + liftB(tau_uB,-1) = - cross(curl(uB),uB)")
+problem.add_equation("dt(TB) + dot(uB, grad_T0B) - kappa*lap(TB) + liftB(tau_TB,-1) = - dot(uB,grad(TB)) + kappa*T_source")
 
 # Shell eqns
-problem.add_equation(eq_eval("div(uS) = 0"))
-problem.add_equation(eq_eval("dt(uS) - nu*lap(uS) + grad(pS) - r_vecS*TS + liftS(tau_uS_bot,-1) + liftS(tau_uS_top, -2) = - cross(curl(uS),uS)"))
-problem.add_equation(eq_eval("dt(TS) + dot(uS, grad_T0S) - kappa*lap(TS) + liftS(tau_TS_bot,-1) + liftS(tau_TS_top, -2) = - dot(uS,grad(TS)) + kappa*T_source"))
+problem.add_equation("div(uS) = 0")
+problem.add_equation("dt(uS) - nu*lap(uS) + grad(pS) - r_vecS*TS + liftS(tau_uS_bot,-1) + liftS(tau_uS_top, -2) = - cross(curl(uS),uS)")
+problem.add_equation("dt(TS) + dot(uS, grad_T0S) - kappa*lap(TS) + liftS(tau_TS_bot,-1) + liftS(tau_TS_top, -2) = - dot(uS,grad(TS)) + kappa*T_source")
 
 # Vel match BCs
-problem.add_equation(eq_eval("u_match_bc = 0"))
-problem.add_equation(eq_eval("p_match_bc = 0"))
-problem.add_equation(eq_eval("stress_match_bc = 0"))
+problem.add_equation("u_match_bc = 0")
+problem.add_equation("p_match_bc = 0")
+problem.add_equation("stress_match_bc = 0")
 
 # Temp match BCs
-problem.add_equation(eq_eval("T_match_bc = 0"))
-problem.add_equation(eq_eval("grad_T_match_bc = 0"))
+problem.add_equation("T_match_bc = 0")
+problem.add_equation("grad_T_match_bc = 0")
 
 # Surface BCs
-problem.add_equation(eq_eval("shear_stress = 0"))  # stress free
-problem.add_equation(eq_eval("rad(uS(r=r_outer)) = 0"), condition="ntheta != 0")  # no penetration
-problem.add_equation(eq_eval("pS(r=r_outer) = 0"), condition="ntheta == 0")  # pressure gauge
-problem.add_equation(eq_eval("TS(r=r_outer) = 0"))
+problem.add_equation("shear_stress = 0")  # stress free
+problem.add_equation("rad(uS(r=r_outer)) = 0", condition="ntheta != 0")  # no penetration
+problem.add_equation("pS(r=r_outer) = 0", condition="ntheta == 0")  # pressure gauge
+problem.add_equation("TS(r=r_outer) = 0")
 
 # Solver
 solver = problem.build_solver(timestepper)
