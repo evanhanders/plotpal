@@ -121,11 +121,22 @@ class FileReader:
                         self.file_counts[k][self.global_comm.rank] = writes[self.global_comm.rank]
                         self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(len(files))))
                 else:
-                    file_block = int(np.ceil(len(files) / self.global_comm.size))
-                    proc_start = self.global_comm.rank * file_block
-                    self.file_starts[k][proc_start:proc_start+file_block] = 0
-                    self.file_counts[k][proc_start:proc_start+file_block] = writes[proc_start:proc_start+file_block]
+                    file_per = int(np.ceil(len(files) / self.global_comm.size))
+                    proc_start = self.global_comm.rank * file_per
+                    self.file_starts[k][proc_start:proc_start+file_per] = 0
+                    self.file_counts[k][proc_start:proc_start+file_per] = writes[proc_start:proc_start+file_per]
                     self.comms[k] = self.global_comm
+                    num_procs = int(np.ceil(len(files) / file_per))
+                    if num_procs == self.global_comm.size:
+                        self.comms[k] = self.global_comm
+                    else:
+                        if self.global_comm.rank < num_procs:
+                            self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(num_procs)))
+                        else:
+                            self.comms[k] = MPI.COMM_SELF
+                            self.idle[k] = True
+
+
             elif distribution.lower() == 'even-chunk':
                 raise NotImplementedError("even-chunk Not yet implemented; use even-write or even-file")
             else:
@@ -190,6 +201,7 @@ class SingleTypeReader():
             self.current_write = -1
             self.current_file_handle = None
             self.current_file_number = None
+            self.current_file_name = None
 
     def writes_remain(self):
         """ 
@@ -203,6 +215,7 @@ class SingleTypeReader():
                 self.current_file_handle.close()
                 self.current_file_handle = None
                 self.current_file_number = None
+                self.current_file_name = None
                 return False
             else:
                 self.current_write += 1
@@ -210,11 +223,13 @@ class SingleTypeReader():
                 if self.current_file_number is None:
                     #First iter
                     self.current_file_number = next_file_number
-                    self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+                    self.current_file_name = self.files[self.current_file_number]
+                    self.current_file_handle = h5py.File(self.current_file_name, 'r')
                 elif self.current_file_number != next_file_number:
                     self.current_file_handle.close()
                     self.current_file_number = next_file_number
-                    self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+                    self.current_file_name = self.files[self.current_file_number]
+                    self.current_file_handle = h5py.File(self.current_file_name, 'r')
                 return True
 
     def get_dsets(self, tasks):
