@@ -121,11 +121,22 @@ class FileReader:
                         self.file_counts[k][self.global_comm.rank] = writes[self.global_comm.rank]
                         self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(len(files))))
                 else:
-                    file_block = int(np.ceil(len(files) / self.global_comm.size))
-                    proc_start = self.global_comm.rank * file_block
-                    self.file_starts[k][proc_start:proc_start+file_block] = 0
-                    self.file_counts[k][proc_start:proc_start+file_block] = writes[proc_start:proc_start+file_block]
+                    file_per = int(np.ceil(len(files) / self.global_comm.size))
+                    proc_start = self.global_comm.rank * file_per
+                    self.file_starts[k][proc_start:proc_start+file_per] = 0
+                    self.file_counts[k][proc_start:proc_start+file_per] = writes[proc_start:proc_start+file_per]
                     self.comms[k] = self.global_comm
+                    num_procs = int(np.ceil(len(files) / file_per))
+                    if num_procs == self.global_comm.size:
+                        self.comms[k] = self.global_comm
+                    else:
+                        if self.global_comm.rank < num_procs:
+                            self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(num_procs)))
+                        else:
+                            self.comms[k] = MPI.COMM_SELF
+                            self.idle[k] = True
+
+
             elif distribution.lower() == 'even-chunk':
                 raise NotImplementedError("even-chunk Not yet implemented; use even-write or even-file")
             else:
