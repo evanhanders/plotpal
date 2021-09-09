@@ -190,6 +190,7 @@ class SingleTypeReader():
             self.current_write = -1
             self.current_file_handle = None
             self.current_file_number = None
+            self.current_file_name = None
 
     def writes_remain(self):
         """ 
@@ -203,6 +204,7 @@ class SingleTypeReader():
                 self.current_file_handle.close()
                 self.current_file_handle = None
                 self.current_file_number = None
+                self.current_file_name = None
                 return False
             else:
                 self.current_write += 1
@@ -210,11 +212,13 @@ class SingleTypeReader():
                 if self.current_file_number is None:
                     #First iter
                     self.current_file_number = next_file_number
-                    self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+                    self.current_file_name = self.files[self.current_file_number]
+                    self.current_file_handle = h5py.File(self.current_file_name, 'r')
                 elif self.current_file_number != next_file_number:
                     self.current_file_handle.close()
                     self.current_file_number = next_file_number
-                    self.current_file_handle = h5py.File(self.files[self.current_file_number], 'r')
+                    self.current_file_name = self.files[self.current_file_number]
+                    self.current_file_handle = h5py.File(self.current_file_name, 'r')
                 return True
 
     def get_dsets(self, tasks):
