@@ -64,8 +64,8 @@ class PlotGrid:
                 cbar_delta_y = 0.1*delta_y
                 cbar_delta_x = 0.75*delta_x
                 delta_y *= 0.8
-                self.cbar_axes['ax_{}-{}'.format(spec['col_num'], spec['row_num'])] = self.fig.add_axes([cbar_x_anchor, cbar_y_anchor, cbar_delta_x, cbar_delta_y])
-            self.axes['ax_{}-{}'.format(spec['col_num'], spec['row_num'])] = self.fig.add_axes([x_anchor, y_anchor, delta_x, delta_y], **spec['kwargs'])
+                self.cbar_axes['ax_{}-{}'.format(spec['row_num'], spec['col_num'])] = self.fig.add_axes([cbar_x_anchor, cbar_y_anchor, cbar_delta_x, cbar_delta_y])
+            self.axes['ax_{}-{}'.format(spec['row_num'], spec['col_num'])] = self.fig.add_axes([x_anchor, y_anchor, delta_x, delta_y], **spec['kwargs'])
 
 
 class RegularPlotGrid(PlotGrid):
