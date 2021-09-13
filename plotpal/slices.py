@@ -185,6 +185,7 @@ class PolarColormesh(Colormesh):
         plot, cb = super().plot_colormesh(ax, cax, dset, ni, **kwargs)
         ax.set_xticks([])
         ax.set_yticks([])
+        ax.set_ylim(0, self.r_pad[1])
         ax.set_aspect(1)
         return plot, cb
 
@@ -271,6 +272,7 @@ class MeridionalColormesh(Colormesh):
         plot, cb = super().plot_colormesh(ax, cax, dset, ni, **kwargs)
         ax.set_xticks([])
         ax.set_yticks([])
+        ax.set_ylim(0, self.r_pad[1])
         ax.set_aspect(1)
         return plot, cb
 
