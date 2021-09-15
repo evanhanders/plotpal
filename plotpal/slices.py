@@ -345,12 +345,21 @@ class SlicePlotter(SingleTypeReader):
             self.colormeshes.append((self.counter, PolarColormesh(shell, r_inner=r_inner, r_outer=r_outer, linked_cm=self.colormeshes[-1][1], **kwargs)))
         self.counter += 1
 
+    def add_ball_shell_meridional_colormesh(self, ball_left=None, ball_right=None, shell_left=None, shell_right=None, r_inner=None, r_outer=None, **kwargs):
+        if ball_left is not None and shell_left is not None and ball_right is not None and shell_right is not None:
+            self.colormeshes.append((self.counter, MeridionalColormesh(ball_left, left=True, r_inner=0, r_outer=r_inner, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(ball_right, r_inner=0, r_outer=r_inner, linked_cm=self.colormeshes[-1][1], **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(shell_left, left=True, r_inner=r_inner, r_outer=r_outer, linked_cm=self.colormeshes[-1][1], **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(shell_right, r_inner=r_inner, r_outer=r_outer, linked_cm=self.colormeshes[-1][1], **kwargs)))
+        self.counter += 1
+
+
     def _groom_grid(self):
         """ Assign colormeshes to axes subplots in the plot grid """
         axs, caxs = [], []
-        for i in range(self.grid.ncols):
-            for j in range(self.grid.nrows):
-                k = 'ax_{}-{}'.format(j, i)
+        for nr in range(self.grid.nrows):
+            for nc in range(self.grid.ncols):
+                k = 'ax_{}-{}'.format(nr, nc)
                 if k in self.grid.axes.keys():
                     axs.append(self.grid.axes[k])
                     caxs.append(self.grid.cbar_axes[k])

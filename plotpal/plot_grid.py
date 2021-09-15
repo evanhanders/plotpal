@@ -51,8 +51,10 @@ class PlotGrid:
         y_factor = 1/self.nrows
 
         for spec in self.specs:
-            x_anchor = spec['col_num']*x_factor
-            y_anchor = spec['row_num']*y_factor
+            col_spot = spec['col_num']
+            row_spot = self.nrows - spec['row_num'] - 1
+            x_anchor = col_spot*x_factor
+            y_anchor = row_spot*y_factor
             delta_x = spec['col_span']*x_factor * (1 - self.pad_factor/100)
             delta_y = spec['row_span']*y_factor * (1 - self.pad_factor/100)
             x_end    = x_anchor + delta_x
