@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 matplotlib.rcParams.update({'font.size': 9})
 
 from plotpal.file_reader import SingleTypeReader, match_basis
-from plotpal.plot_grid import ColorbarPlotGrid, PlotGrid, RegularPlotGrid
+from plotpal.plot_grid import RegularPlotGrid
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
@@ -21,7 +21,7 @@ class AveragedProfilePlotter(SingleTypeReader):
     """ Plots time-averaged profiles """
 
     def __init__(self, *args, writes_per_avg=100, **kwargs):
-        super().__init__(*args, chunk_size=writes_per_avg, **kwargs)
+        super().__init__(*args, chunk_size=writes_per_avg, distribution='even-chunk', **kwargs)
         self.writes_per_avg = writes_per_avg
         self.plots = []
         self.tasks = []
@@ -32,7 +32,7 @@ class AveragedProfilePlotter(SingleTypeReader):
             raise ValueError("Must specify x_basis (str), y_tasks (str or tuple of strs), and name (str)")
         if isinstance(y_tasks, str):
             y_tasks = (y_tasks,)
-        self.plots.append((x_basis, y_tasks, name, RegularPlotGrid(num_rows=1, num_cols=1, col_inch=fig_width, row_inch=fig_height))
+        self.plots.append((x_basis, y_tasks, name, RegularPlotGrid(num_rows=1, num_cols=1, col_inch=fig_width, row_inch=fig_height)))
         for task in y_tasks:
             if task not in self.tasks:
                 self.tasks.append(task)
@@ -49,7 +49,10 @@ class AveragedProfilePlotter(SingleTypeReader):
                 self.averages[task] += dsets[task][ni,:].squeeze()
             local_count += 1
             if local_count == self.writes_per_avg:
-                write_number = int(dsets[task].dims[0]['write_number']/self.writes_per_avg)
+                write_number = int(dsets[task].dims[0]['write_number'][ni]/self.writes_per_avg)
+                if self.comm.rank == 0:
+                    print('writing average profiles; plot number {}'.format(write_number))
+                    stdout.flush()
                 end_time = dsets[task].dims[0]['sim_time'][ni]
                 for plot_info in self.plots:
                     x_basis, y_tasks, name, grid = plot_info
@@ -58,10 +61,12 @@ class AveragedProfilePlotter(SingleTypeReader):
                         x = match_basis(dsets[task], x_basis)
                         y = self.averages[task]/local_count
                         ax.plot(x, y, label=task)
+                    ax.set_xlabel(x_basis)
                     ax.legend()
-                    plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
-                    grid.fig.savefig('{:s}/{:s}_{:03d}.png'.format(self.out_dir, self.fig_name, write_number), dpi=dpi, bbox_inches='tight')
+                    plt.suptitle('t = {:.2e}-{:.2e}'.format(start_time, end_time))
+                    grid.fig.savefig('{:s}/{:s}_{:03d}.png'.format(self.out_dir, name, write_number), dpi=dpi, bbox_inches='tight')
                     ax.clear()
+                local_count = 0
                         
 #                        
 #

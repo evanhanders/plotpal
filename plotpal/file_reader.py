@@ -117,12 +117,17 @@ class FileReader:
                     num_procs = int(np.ceil(len(files) / file_per))
             elif distribution.lower() == 'even-chunk':
                 num_procs = int(np.ceil(np.sum(writes) / chunk_size))
+                chunk_adjust = 1
                 if num_procs > self.global_comm.size:
+                        chunk_adjust = int(np.floor(num_procs/self.global_comm.size))
+                        if self.global_comm.rank < num_procs % self.global_comm.size:
+                            chunk_adjust += 1
                         num_procs = self.global_comm.size
+                chunk_size *= chunk_adjust
                 proc_start = self.global_comm.rank * chunk_size
                 self.file_starts[k] = np.clip(proc_start, a_min=set_starts, a_max=set_ends)
-                self.file_counts[k] = np.clip(proc_start+chunk_size, a_min=set_starts, a_max=set_ends) - starts
-                raise NotImplementedError("even-chunk Not yet implemented; use even-write or even-file")
+                self.file_counts[k] = np.clip(proc_start+chunk_size, a_min=set_starts, a_max=set_ends) - self.file_starts[k]
+                self.file_starts[k] -= set_starts
             else:
                 raise ValueError("invalid distribution choice.")
 
@@ -230,6 +235,10 @@ class SingleTypeReader():
     def get_dsets(self, tasks):
         """ Given a list of task strings, returns a dictionary of the associated datasets. """
         if not self.idle:
+            if self.comm.rank == 0:
+                print('gathering {} tasks; write {}/{} on process 0'.format(tasks, self.current_write+1, self.writes))
+                stdout.flush()
+
             output = OrderedDict()
             f = self.current_file_handle
             for k in tasks:

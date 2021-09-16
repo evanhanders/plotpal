@@ -387,9 +387,6 @@ class SlicePlotter(SingleTypeReader):
             if self.idle: return
 
             while self.writes_remain():
-                if self.reader.global_comm.rank == 0:
-                    print('writing plot {}/{} on process 0'.format(self.current_write+1, self.writes))
-                    stdout.flush()
                 dsets, ni = self.get_dsets(tasks)
                 time_data = dsets[self.colormeshes[0][1].task].dims[0]
 

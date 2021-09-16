@@ -135,9 +135,8 @@ vol_avg = lambda A: d3.Integrate(A/volume, coords)
 
 er = dist.VectorField(coords, name='er')
 er['g'][2] = 1
-rvals = dist.Field(name='rvals', bases=basis)
-rvals['g'] = r
-
+r_vals = dist.Field(name='r_vals', bases=basis)
+r_vals['g'] = r
 luminosity = lambda A: s2_avg(4*np.pi*r_vals**2*A)
 
 # Analysis
