@@ -14,6 +14,7 @@ matplotlib.rcParams.update({'font.size': 9})
 
 from plotpal.file_reader import SingleTypeReader, match_basis
 from plotpal.plot_grid import RegularPlotGrid
+from dedalus.extras.flow_tools import GlobalArrayReducer
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
@@ -26,6 +27,7 @@ class AveragedProfilePlotter(SingleTypeReader):
         self.plots = []
         self.tasks = []
         self.averages = OrderedDict()
+        self.stored_averages = OrderedDict()
 
     def add_average_plot(self, x_basis=None, y_tasks=None, name=None, fig_height=3, fig_width=3):
         if x_basis is None or y_tasks is None or name is None:
@@ -36,6 +38,7 @@ class AveragedProfilePlotter(SingleTypeReader):
         for task in y_tasks:
             if task not in self.tasks:
                 self.tasks.append(task)
+                self.stored_averages[task] = []
 
     def plot_average_profiles(self, dpi=200, save_data=False):
         local_count = 0
@@ -66,7 +69,23 @@ class AveragedProfilePlotter(SingleTypeReader):
                     plt.suptitle('t = {:.2e}-{:.2e}'.format(start_time, end_time))
                     grid.fig.savefig('{:s}/{:s}_{:03d}.png'.format(self.out_dir, name, write_number), dpi=dpi, bbox_inches='tight')
                     ax.clear()
+                if save_data:
+                    for task in self.tasks:
+                        self.stored_averages[task] = (self.averages[task]/local_count, write_number, start_time, end_time)
                 local_count = 0
+        if save_data:
+                self.save_averaged_profiles()
+
+    def save_averaged_profiles(self):
+        reducer = GlobalArrayReducer(self.comm)
+        for task in tasks:
+            num_writes = reducer.reduce_scalar(self.stored_averages[task][-1][1], MPI.MAX)
+            out_data = np.zeros([num_writes,] + self.stored_averages[task][-1][0].shape, dtype=np.float64)
+            #fill out_data
+            #bcast out_data
+        #save to file
+#        with h5py.File('{:s}/averaged_profiles.h5'.format(self.out_dir, 'w') as f:
+            
                         
 #                        
 #
