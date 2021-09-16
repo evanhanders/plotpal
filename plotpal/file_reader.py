@@ -89,7 +89,7 @@ class FileReader:
             self.idle[k] = False
 
             if distribution.lower() == 'single':
-                self.comms[k] = MPI.COMM_SELF
+                num_procs = 1
                 if self.global_comm.rank == 0:
                     self.file_starts[k] = np.zeros_like(writes)
                     self.file_counts[k] = np.copy(writes)
@@ -101,46 +101,41 @@ class FileReader:
                 self.file_starts[k], self.file_counts[k] = post.get_assigned_writes(files)
                 writes_per = np.ceil(np.sum(writes)/self.global_comm.size)
                 num_procs = int(np.ceil(np.sum(writes) / writes_per))
-                if num_procs == self.global_comm.size:
-                    self.comms[k] = self.global_comm
-                else:
-                    if self.global_comm.rank < num_procs:
-                        self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(num_procs)))
-                    else:
-                        self.comms[k] = MPI.COMM_SELF
-                        self.idle[k] = True
             elif distribution.lower() == 'even-file':
                 self.file_starts[k] = np.copy(writes)
                 self.file_counts[k] = np.zeros_like(writes)
                 if len(files) <= self.global_comm.size:
-                    if self.global_comm.rank >= len(files):
-                        self.comms[k] = MPI.COMM_SELF
-                        self.idle[k] = True
-                    else:
+                    num_procs = len(files)
+                    if self.global_comm.rank < len(files):
                         self.file_starts[k][self.global_comm.rank] = 0
                         self.file_counts[k][self.global_comm.rank] = writes[self.global_comm.rank]
-                        self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(len(files))))
                 else:
                     file_per = int(np.ceil(len(files) / self.global_comm.size))
                     proc_start = self.global_comm.rank * file_per
                     self.file_starts[k][proc_start:proc_start+file_per] = 0
                     self.file_counts[k][proc_start:proc_start+file_per] = writes[proc_start:proc_start+file_per]
-                    self.comms[k] = self.global_comm
                     num_procs = int(np.ceil(len(files) / file_per))
-                    if num_procs == self.global_comm.size:
-                        self.comms[k] = self.global_comm
-                    else:
-                        if self.global_comm.rank < num_procs:
-                            self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(num_procs)))
-                        else:
-                            self.comms[k] = MPI.COMM_SELF
-                            self.idle[k] = True
-
-
             elif distribution.lower() == 'even-chunk':
+                num_procs = int(np.ceil(np.sum(writes) / chunk_size))
+                if num_procs > self.global_comm.size:
+                        num_procs = self.global_comm.size
+                proc_start = self.global_comm.rank * chunk_size
+                self.file_starts[k] = np.clip(proc_start, a_min=set_starts, a_max=set_ends)
+                self.file_counts[k] = np.clip(proc_start+chunk_size, a_min=set_starts, a_max=set_ends) - starts
                 raise NotImplementedError("even-chunk Not yet implemented; use even-write or even-file")
             else:
                 raise ValueError("invalid distribution choice.")
+
+            # Distribute comms
+            if num_procs == self.global_comm.size:
+                self.comms[k] = self.global_comm
+            else:
+                if self.global_comm.rank < num_procs:
+                    self.comms[k] = self.global_comm.Create(self.global_comm.Get_group().Incl(np.arange(num_procs)))
+                else:
+                    self.comms[k] = MPI.COMM_SELF
+                    self.idle[k] = True
+
 
 
 class SingleTypeReader():

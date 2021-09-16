@@ -133,6 +133,13 @@ az_avg = lambda A: d3.Average(A, coords.coords[0])
 s2_avg = lambda A: d3.Average(A, coords.S2coordsys)
 vol_avg = lambda A: d3.Integrate(A/volume, coords)
 
+er = dist.VectorField(coords, name='er')
+er['g'][2] = 1
+rvals = dist.Field(name='rvals', bases=basis)
+rvals['g'] = r
+
+luminosity = lambda A: s2_avg(4*np.pi*r_vals**2*A)
+
 # Analysis
 slices = solver.evaluator.add_file_handler('slices', sim_dt=0.1, max_writes=10, mode=file_handler_mode)
 slices.add_task(T(phi=0), name='T mer right')
@@ -142,6 +149,8 @@ slices.add_task(T(r=1/2), name='T r=0.5')
 
 profiles = solver.evaluator.add_file_handler('profiles', sim_dt=0.1, max_writes=10, mode=file_handler_mode)
 profiles.add_task(s2_avg(T), name='T profile')
+profiles.add_task(dot(er, luminosity(u*T)), name='conv luminosity')
+profiles.add_task(dot(er, luminosity(kappa*grad(T))), name='cond luminosity')
 
 scalars = solver.evaluator.add_file_handler('scalars', sim_dt=0.1, max_writes=10, mode=file_handler_mode)
 scalars.add_task(vol_avg(dot(u,u)/2), name='KE')
