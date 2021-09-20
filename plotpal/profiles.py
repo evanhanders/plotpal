@@ -28,6 +28,7 @@ class AveragedProfilePlotter(SingleTypeReader):
         self.tasks = []
         self.averages = OrderedDict()
         self.stored_averages = OrderedDict()
+        self.stored_bases = OrderedDict()
 
     def add_average_plot(self, x_basis=None, y_tasks=None, name=None, fig_height=3, fig_width=3):
         if x_basis is None or y_tasks is None or name is None:
@@ -61,7 +62,11 @@ class AveragedProfilePlotter(SingleTypeReader):
                     x_basis, y_tasks, name, grid = plot_info
                     ax = grid.axes['ax_0-0']
                     for task in y_tasks:
-                        x = match_basis(dsets[task], x_basis)
+                        if task in self.stored_bases:
+                            x = self.stored_bases[task][1]
+                        else:
+                            x = match_basis(dsets[task], x_basis)
+                            self.stored_bases[task] = (x_basis, x)
                         y = self.averages[task]/local_count
                         ax.plot(x, y, label=task)
                     ax.set_xlabel(x_basis)
@@ -71,22 +76,62 @@ class AveragedProfilePlotter(SingleTypeReader):
                     ax.clear()
                 if save_data:
                     for task in self.tasks:
-                        self.stored_averages[task] = (self.averages[task]/local_count, write_number, start_time, end_time)
+                        y = self.averages[task]/local_count
+                        self.stored_averages[task].append((y, write_number, start_time, end_time))
                 local_count = 0
         if save_data:
                 self.save_averaged_profiles()
 
     def save_averaged_profiles(self):
         reducer = GlobalArrayReducer(self.comm)
-        for task in tasks:
-            num_writes = reducer.reduce_scalar(self.stored_averages[task][-1][1], MPI.MAX)
-            out_data = np.zeros([num_writes,] + self.stored_averages[task][-1][0].shape, dtype=np.float64)
-            #fill out_data
-            #bcast out_data
-        #save to file
-#        with h5py.File('{:s}/averaged_profiles.h5'.format(self.out_dir, 'w') as f:
-            
-                        
+        save_data = OrderedDict()
+        for task in self.tasks:
+            num_writes = int(reducer.reduce_scalar(self.stored_averages[task][-1][2], MPI.MAX))
+            out_data = np.zeros((num_writes,) + self.stored_averages[task][-1][0].shape, dtype=np.float64)
+            out_start_times = np.zeros(num_writes, dtype=np.float64)
+            out_dts = np.zeros_like(out_start_times)
+            # fill out_data
+            for avg, wn, start, end in self.stored_averages[task]:
+                out_data[wn-1,:] = avg
+                out_start_times[wn-1] = start
+                out_dts[wn-1] = end - start
+            # broadcast and gather data on root node
+            if self.comm.rank == 0:
+                reduced_data = np.zeros_like(out_data)
+                reduced_start_times = np.zeros_like(out_start_times)
+                reduced_dts = np.zeros_like(out_dts)
+            else:
+                reduced_data = reduced_start_times = reduced_dts = None
+            self.comm.Reduce(out_data, reduced_data, op=MPI.SUM, root=0)
+            self.comm.Reduce(out_start_times, reduced_start_times, op=MPI.SUM, root=0)
+            self.comm.Reduce(out_dts, reduced_dts, op=MPI.SUM, root=0)
+            save_data[task] = (reduced_data, reduced_start_times, reduced_dts)
+                
+        if self.comm.rank == 0:
+            # save to file
+            with h5py.File('{:s}/averaged_profiles.h5'.format(self.out_dir), 'w') as f:
+                scale_group = f.create_group('scales')
+                task_group = f.create_group('tasks')
+                for task in self.tasks:
+                    out_data, out_start_times, out_dts = save_data[task]
+                    dset = task_group.create_dataset(name=task, shape=out_data.shape, dtype=np.float64)
+                    dset[:] = out_data
+                    dset.dims[0].label = 't'
+                    for arr, sn in zip([out_start_times, out_dts], ['sim_time', 'avg_time']):
+                        scale_name = '{} - {}'.format(task, sn)
+                        scale_group.create_dataset(name=scale_name, shape=arr.shape, dtype=np.float64)
+                        scale_group[scale_name][:] = arr
+                        scale_group[scale_name].make_scale(sn)
+                        dset.dims[0].attach_scale(scale_group[scale_name])
+
+                    basis_name, basis = self.stored_bases[task]
+                    dset.dims[1].label = basis_name
+                    scale_name = '{} - {}'.format(task, basis_name)
+                    scale_group.create_dataset(name=scale_name, shape=basis.shape, dtype=np.float64)
+                    scale_group[scale_name][:] = basis
+                    scale_group[scale_name].make_scale(basis_name)
+                    dset.dims[1].attach_scale(scale_group[scale_name])
+                            
 #                        
 #
 #
