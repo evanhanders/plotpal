@@ -18,6 +18,14 @@ from dedalus.extras.flow_tools import GlobalArrayReducer
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
+def save_dim_scale(dim, scale_group, task_name, scale_name, scale_data, dtype=np.float64):
+    full_scale_name = '{} - {}'.format(task_name, scale_name)
+    scale_dset = scale_group.create_dataset(name=full_scale_name, shape=scale_data.shape, dtype=dtype)
+    scale_dset[:] = scale_data
+    scale_dset.make_scale(scale_name)
+    dim.attach_scale(scale_dset)
+
+
 class AveragedProfilePlotter(SingleTypeReader):
     """ Plots time-averaged profiles """
 
@@ -118,19 +126,12 @@ class AveragedProfilePlotter(SingleTypeReader):
                     dset[:] = out_data
                     dset.dims[0].label = 't'
                     for arr, sn in zip([out_start_times, out_dts], ['sim_time', 'avg_time']):
-                        scale_name = '{} - {}'.format(task, sn)
-                        scale_group.create_dataset(name=scale_name, shape=arr.shape, dtype=np.float64)
-                        scale_group[scale_name][:] = arr
-                        scale_group[scale_name].make_scale(sn)
-                        dset.dims[0].attach_scale(scale_group[scale_name])
+                        save_dim_scale(dset.dims[0], scale_group, task, sn, arr)
 
                     basis_name, basis = self.stored_bases[task]
                     dset.dims[1].label = basis_name
-                    scale_name = '{} - {}'.format(task, basis_name)
-                    scale_group.create_dataset(name=scale_name, shape=basis.shape, dtype=np.float64)
-                    scale_group[scale_name][:] = basis
-                    scale_group[scale_name].make_scale(basis_name)
-                    dset.dims[1].attach_scale(scale_group[scale_name])
+                    save_dim_scale(dset.dims[1], scale_group, task, basis_name, basis)
+
                             
 #                        
 #
