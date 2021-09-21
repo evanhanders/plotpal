@@ -88,6 +88,7 @@ class FileReader:
             set_starts = set_ends - writes
             self.idle[k] = False
 
+            # Distribute writes
             if distribution.lower() == 'single':
                 num_procs = 1
                 if self.global_comm.rank == 0:
@@ -141,6 +142,63 @@ class FileReader:
                     self.comms[k] = MPI.COMM_SELF
                     self.idle[k] = True
 
+
+class RollingFileReader(FileReader):
+    """ 
+    Distributes files for even processing, but also keeps track of surrounding writes
+    for taking rolling averages over tasks
+    """
+    def __init__(self, *args, roll_writes=10, **kwargs):
+        kwargs['distribution'] = 'even-write'
+        self.roll_writes = roll_writes
+        super().__init__(*args, **kwargs)
+
+    def _distribute_writes(self, *args, **kwargs):
+        super()._distribute_writes(*args, **kwargs)
+        self.roll_starts, self.roll_counts = OrderedDict(), OrderedDict()
+
+        for k, files in self.file_lists.items():
+            writes = np.array(post.get_all_writes(files))
+            set_ends = np.cumsum(writes)
+            set_starts = set_ends - writes
+            global_writes = np.sum(writes)
+            file_indices = np.arange(len(set_starts))
+
+            base_starts, base_counts = self.file_starts[k], self.file_counts[k]
+            local_writes = np.sum(base_counts)
+            self.roll_starts[k] = np.zeros((local_writes, len(base_counts)), dtype=np.int32)
+            self.roll_counts[k] = np.zeros((local_writes, len(base_counts)), dtype=np.int32)
+            global_indices = np.zeros(local_writes, dtype=np.int32)
+
+            counter = 0
+            for i, counts in enumerate(base_counts):
+                if counts > 0:
+                    for j in range(counts):
+                        global_indices[counter] = set_starts[i] + base_starts[i] + j
+                        counter += 1
+            print(global_indices)
+                    
+
+            for i in range(local_writes):
+                #Find start index, decrement by roll_writes
+                roll_start_global = global_indices[i] - self.roll_writes
+                roll_end_global = global_indices[i] + self.roll_writes
+                if roll_start_global < 0:
+                    roll_start_global = 0
+                elif roll_end_global > global_writes - 1:
+                    roll_end_global = global_writes - 1
+                file_index = file_indices[(roll_start_global >= set_starts)*(roll_start_global < set_ends)][0]
+                self.roll_starts[k][i,file_index] = roll_start_global - set_starts[file_index]
+                remaining_writes = roll_end_global - roll_start_global
+                while remaining_writes > 0:
+                    remaining_this_file = writes[file_index] - self.roll_starts[k][i,file_index]
+                    if remaining_writes > remaining_this_file:
+                        counts = remaining_this_file
+                    else:
+                        counts = remaining_writes
+                    self.roll_counts[k][i,file_index] = counts
+                    remaining_writes -= counts
+                    file_index += 1
 
 
 class SingleTypeReader():
