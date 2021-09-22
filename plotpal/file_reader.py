@@ -13,6 +13,19 @@ from dedalus.tools import post
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
+class RolledDset:
+    def __init__(self, dset, ni, rolled_data):
+        self.dims = dset.dims
+        self.ni = ni
+        self.data = rolled_data
+
+    def __getitem__(self, ni):
+        if ni == self.ni:
+            return self.data
+        else:
+            raise ValueError("Wrong index value used for currently stored rolled data")
+
+
 def match_basis(dset, basis):
     """ Returns a 1D numpy array of the requested basis "n bases: """
     for i in range(len(dset.dims)):
@@ -206,7 +219,7 @@ class SingleTypeReader():
     An abstract class for plotters that only deal with a single directory of Dedalus data
 
     # Attributes
-        fig_name (str) : 
+        out_name (str) : 
             Base name of output figures
         my_sync (Sync) : 
             Keeps processes synchronized in the code even when some are idle
@@ -216,7 +229,7 @@ class SingleTypeReader():
             A file reader for interfacing with Dedalus files
     """
 
-    def __init__(self, root_dir, file_dir, fig_name, n_files=None, **kwargs):
+    def __init__(self, root_dir, file_dir, out_name, n_files=None, roll_writes=None, **kwargs):
         """
         Initializes the profile plotter.
 
@@ -225,16 +238,21 @@ class SingleTypeReader():
                 Root file directory of output files
             file_dir (str) : 
                 subdirectory of root_dir where the data to make PDFs is contained
-            fig_name (str) : 
+            out_name (str) : 
                 As in class-level docstring
             n_files  (int, optional) :
                 Number of files to process. If None, all of them.
             kwargs (dict) : 
                 Additional keyword arguments for FileReader()
         """
-        self.reader = FileReader(root_dir, sub_dirs=[file_dir,], num_files=[n_files,], **kwargs)
-        self.fig_name = fig_name
-        self.out_dir  = '{:s}/{:s}/'.format(root_dir, fig_name)
+        if roll_writes is None:
+            self.reader = FileReader(root_dir, sub_dirs=[file_dir,], num_files=[n_files,], **kwargs)
+        else:
+            self.reader = RollingFileReader(root_dir, sub_dirs=[file_dir,], num_files=[n_files,], roll_writes=roll_writes, **kwargs)
+            self.roll_counts = self.reader.roll_counts[file_dir]
+            self.roll_starts = self.reader.roll_starts[file_dir]
+        self.out_name = out_name
+        self.out_dir  = '{:s}/{:s}/'.format(root_dir, out_name)
         if self.reader.global_comm.rank == 0 and not os.path.exists('{:s}'.format(self.out_dir)):
             os.mkdir('{:s}'.format(self.out_dir))
         self.my_sync = Sync(self.reader.global_comm)
@@ -299,7 +317,22 @@ class SingleTypeReader():
 
             output = OrderedDict()
             f = self.current_file_handle
+            ni = self.file_index[self.current_write]
             for k in tasks:
-                output[k] = f['tasks/{}'.format(k)]
-            return output, self.file_index[self.current_write]
-                
+                if isinstance(self.reader, RollingFileReader):
+                    base_dset = f['tasks/{}'.format(k)]
+                    rolled_data = np.zeros_like(base_dset[0,:])
+                    rolled_counter = 0
+                    ri = self.current_write-1
+                    for i, c in enumerate(self.roll_counts[ri,:]): 
+                        if c > 0:   
+                            local_indices = np.arange(c, dtype=np.int64) + self.roll_starts[ri,i]
+                            with h5py.File(self.files[i], 'r') as rf:
+                                dset = rf['tasks/{}'.format(k)]
+                                rolled_data += np.sum(dset[local_indices], axis=0)
+                                rolled_counter += c
+                    rolled_data /= rolled_counter
+                    output[k] = RolledDset(base_dset, ni, rolled_data)
+                else:
+                    output[k] = f['tasks/{}'.format(k)]
+            return output, ni
