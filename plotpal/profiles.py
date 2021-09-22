@@ -132,6 +132,79 @@ class AveragedProfilePlotter(SingleTypeReader):
                     dset.dims[1].label = basis_name
                     save_dim_scale(dset.dims[1], scale_group, task, basis_name, basis)
 
+
+class RolledProfilePlotter(SingleTypeReader):
+    """ Plots time-averaged profiles """
+
+    def __init__(self, *args, roll_writes=20, **kwargs):
+        super().__init__(*args, roll_writes=roll_writes, **kwargs)
+        self.lines = []
+        self.tasks = []
+        self.color_ind = 0
+
+    def setup_grid(self, *args, **kwargs):
+        """ Initialize the plot grid for the colormeshes """
+        self.grid = RegularPlotGrid(*args, **kwargs)
+
+    def use_custom_grid(self, custom_grid):
+        self.grid = custom_grid
+
+    def _groom_grid(self):
+        """ Assign colormeshes to axes subplots in the plot grid """
+        axs = []
+        for nr in range(self.grid.nrows):
+            for nc in range(self.grid.ncols):
+                k = 'ax_{}-{}'.format(nr, nc)
+                if k in self.grid.axes.keys():
+                    axs.append(self.grid.axes[k])
+        return axs
+
+    def add_line(self, basis, task, grid_num=None, **kwargs):
+        if grid_num is None:
+            raise ValueError("Must specify an index grid_num >= 0")
+        if 'color' not in kwargs and 'c' not in kwargs:
+            kwargs['color'] = 'C' + str(self.color_ind)
+            self.color_ind += 1
+        if 'label' not in kwargs:
+            kwargs['label'] = task
+        self.lines.append((grid_num, basis, task, kwargs))
+
+    def plot_lines(self, start_fig=1, dpi=200):
+
+        """
+        Plot figures of the 2D dedalus data slices at each timestep.
+
+        # Arguments
+            start_fig (int) :
+                The number in the filename for the first write.
+            dpi (int) :
+                The pixel density of the output image
+        """
+        with self.my_sync:
+            if self.idle: return
+
+            axs = self._groom_grid()
+            tasks = []
+            for line_data in self.lines:
+                this_task = line_data[2]
+                if this_task not in tasks:
+                    tasks.append(this_task)
+            while self.writes_remain():
+                dsets, ni = self.get_dsets(tasks)
+                time_data = dsets[tasks[0]].dims[0]
+
+                for line_data in self.lines:
+                    ind, basis, task, kwargs = line_data
+                    ax = axs[ind]
+                    dset = dsets[task]
+                    x = match_basis(dset, basis)
+                    ax.plot(x, dset[ni].squeeze(), **kwargs)
+
+                plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
+                self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
+                for ax in axs: ax.clear()
+
+
                             
 #                        
 #

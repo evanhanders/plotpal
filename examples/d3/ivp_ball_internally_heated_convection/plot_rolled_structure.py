@@ -6,18 +6,18 @@ Usage:
 
 Options:
     --data_dir=<dir>                    Name of data handler directory [default: profiles]
-    --subdir_name=<subdir_name>               Name of figure output directory & base name of saved figures [default: avg_structure]
+    --subdir_name=<subdir_name>               Name of figure output directory & base name of saved figures [default: rolled_structure]
     --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
     --n_files=<num_files>               Total number of files to plot
-    --writes_per_avg=<int>              Number of writes over which to take average [default: 15]
+    --roll_writes=<int>                 Number of writes over which to take average
     --dpi=<dpi>                         Image pixel density [default: 200]
 
-    --fig_width=<in>                    Figure width (inches) [default: 6]
-    --fig_height=<in>                   Figure height (inches) [default: 3]
+    --col_inch=<in>                    Figure width (inches) [default: 6]
+    --row_inch=<in>                   Figure height (inches) [default: 3]
 """
 from docopt import docopt
 args = docopt(__doc__)
-from plotpal.profiles import AveragedProfilePlotter
+from plotpal.profiles import RolledProfilePlotter
 
 # Read in master output directory
 root_dir    = args['<root_dir>']
@@ -29,17 +29,19 @@ if root_dir is None:
 
 # Read in additional plot arguments
 start_file  = int(args['--start_file'])
-writes_per_avg = int(args['--writes_per_avg'])
 subdir_name    = args['--subdir_name']
 n_files     = args['--n_files']
 if n_files is not None: 
     n_files = int(n_files)
 
+roll_writes = args['--roll_writes']
+if roll_writes is not None:
+    roll_writes = int(roll_writes)
 
 # Create Plotter object, tell it which fields to plot
-plotter = AveragedProfilePlotter(root_dir, writes_per_avg=writes_per_avg, file_dir=data_dir, out_name=subdir_name, start_file=start_file, n_files=n_files)
-plotter_kwargs = { 'fig_width' : int(args['--fig_width']), 'fig_height' : int(args['--fig_height']) }
-plotter.add_average_plot(x_basis='r', y_tasks='T profile', name='T_vs_r', **plotter_kwargs)
-plotter.add_average_plot(x_basis='r', y_tasks=('conv luminosity', 'cond luminosity'), name='lum_vs_r', **plotter_kwargs)
-
-plotter.plot_average_profiles(dpi=int(args['--dpi']), save_data=True)
+plotter = RolledProfilePlotter(root_dir, file_dir=data_dir, out_name=subdir_name, roll_writes=roll_writes, start_file=start_file, n_files=n_files)
+plotter.setup_grid(num_rows=2, num_cols=1, col_inch=float(args['--col_inch']), row_inch=float(args['--row_inch']))
+plotter.add_line('r', 'T profile', grid_num=0)
+plotter.add_line('r', 'conv luminosity', grid_num=1)
+plotter.add_line('r', 'cond luminosity', grid_num=1)
+plotter.plot_lines()

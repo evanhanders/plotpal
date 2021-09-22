@@ -6,7 +6,7 @@ Usage:
 
 Options:
     --data_dir=<dir>                    Name of data handler directory [default: snapshots]
-    --fig_name=<fig_name>               Name of figure output directory & base name of saved figures [default: slice_frames]
+    --out_name=<out_name>               Name of figure output directory & base name of saved figures [default: slice_frames]
     --start_fig=<fig_start_num>         Number of first figure file [default: 1]
     --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
     --n_files=<num_files>               Total number of files to plot
@@ -30,13 +30,13 @@ if root_dir is None:
 # Read in additional plot arguments
 start_fig   = int(args['--start_fig'])
 start_file  = int(args['--start_file'])
-fig_name    = args['--fig_name']
+out_name    = args['--out_name']
 n_files     = args['--n_files']
 if n_files is not None: 
     n_files = int(n_files)
 
 # Create Plotter object, tell it which fields to plot
-plotter = SlicePlotter(root_dir, file_dir=data_dir, fig_name=fig_name, start_file=start_file, n_files=n_files)
+plotter = SlicePlotter(root_dir, file_dir=data_dir, out_name=out_name, start_file=start_file, n_files=n_files)
 plotter_kwargs = { 'col_inch' : float(args['--col_inch']), 'row_inch' : float(args['--row_inch']) }
 
 # Just plot a single plot (1x1 grid) of the field "b"

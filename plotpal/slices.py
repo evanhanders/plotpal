@@ -396,7 +396,7 @@ class SlicePlotter(SingleTypeReader):
                     cm.plot_colormesh(ax, cax, dsets[cm.task], ni, **kwargs)
 
                 plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
-                self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
+                self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
                 for ax in axs: ax.clear()
                 for cax in caxs: cax.clear()
 
