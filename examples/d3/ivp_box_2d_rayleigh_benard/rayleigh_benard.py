@@ -123,6 +123,12 @@ snapshots.add_task(b)
 snapshots.add_task(dot(u,ex), name='ux')
 snapshots.add_task(dot(u,ez), name='uz')
 
+plane_avg = lambda A: d3.Integrate(A, coords['x'])
+profiles = solver.evaluator.add_file_handler('profiles', sim_dt=0.1, max_writes=50)
+profiles.add_task(plane_avg(b), name='b')
+profiles.add_task(plane_avg(dot(ez, u*b)), name='conv_flux')
+profiles.add_task(plane_avg(dot(ez, -kappa*grad(b))), name='cond_flux')
+
 # CFL
 CFL = d3.CFL(solver, initial_dt=max_timestep, cadence=10, safety=0.5, threshold=0.1,
              max_change=1.5, min_change=0.5, max_dt=max_timestep)

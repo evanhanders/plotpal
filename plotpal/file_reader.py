@@ -19,7 +19,9 @@ class RolledDset:
         self.ni = ni
         self.data = rolled_data
 
-    def __getitem__(self, ni):
+    def __getitem__(self, ni, *args):
+        if isinstance(ni, tuple) and ni[0] == self.ni:
+            return self.data[ni[1:]]
         if ni == self.ni:
             return self.data
         else:
@@ -189,8 +191,6 @@ class RollingFileReader(FileReader):
                     for j in range(counts):
                         global_indices[counter] = set_starts[i] + base_starts[i] + j
                         counter += 1
-            print(global_indices)
-                    
 
             for i in range(local_writes):
                 #Find start index, decrement by roll_writes
@@ -212,6 +212,7 @@ class RollingFileReader(FileReader):
                     self.roll_counts[k][i,file_index] = counts
                     remaining_writes -= counts
                     file_index += 1
+
 
 
 class SingleTypeReader():
@@ -323,8 +324,8 @@ class SingleTypeReader():
                     base_dset = f['tasks/{}'.format(k)]
                     rolled_data = np.zeros_like(base_dset[0,:])
                     rolled_counter = 0
-                    ri = self.current_write-1
-                    for i, c in enumerate(self.roll_counts[ri,:]): 
+                    ri = self.current_write
+                    for i, c in enumerate(self.roll_counts[ri,:]):
                         if c > 0:   
                             local_indices = np.arange(c, dtype=np.int64) + self.roll_starts[ri,i]
                             with h5py.File(self.files[i], 'r') as rf:
