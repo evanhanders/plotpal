@@ -199,8 +199,11 @@ class RolledProfilePlotter(SingleTypeReader):
                     dset = dsets[task]
                     x = match_basis(dset, basis)
                     ax.plot(x, dset[ni].squeeze(), **kwargs)
+                    ax.legend()
+                    ax.set_xlabel(basis)
 
                 plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
+
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
                 for ax in axs: ax.clear()
 

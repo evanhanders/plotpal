@@ -164,7 +164,6 @@ class RollingFileReader(FileReader):
     for taking rolling averages over tasks
     """
     def __init__(self, *args, roll_writes=10, **kwargs):
-        kwargs['distribution'] = 'even-write'
         self.roll_writes = roll_writes
         super().__init__(*args, **kwargs)
 

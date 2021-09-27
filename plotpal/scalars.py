@@ -12,13 +12,13 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 matplotlib.rcParams.update({'font.size': 9})
 
-from plotpal.file_reader import SingleFiletypePlotter
-from plotpal.plot_grid import PlotGrid
+from plotpal.file_reader import SingleTypeReader
+from plotpal.plot_grid import RegularPlotGrid
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
 
-class ScalarFigure(PlotGrid):
+class ScalarFigure(RegularPlotGrid):
     """
     A simple extension of the PlotGrid class tailored specifically for scalar line traces.
 
@@ -52,12 +52,14 @@ class ScalarFigure(PlotGrid):
         self.panels = []
         self.panel_fields = []
         self.fig_name = fig_name
-        for i in range(self.ncols):
-            for j in range(self.nrows):
+        self.color_ind = []
+        for i in range(self.num_rows):
+            for j in range(self.num_cols):
                 self.panels.append('ax_{}-{}'.format(i,j))
                 self.panel_fields.append([])
+                self.color_ind.append(0)
 
-    def add_field(self, panel, field, log=False):
+    def add_field(self, panel, field, log=False, **kwargs):
         """
         Add a field to a specified panel
 
@@ -69,9 +71,12 @@ class ScalarFigure(PlotGrid):
             log (bool, optional) :
                 If True, log-scale the y-axis of the plot
         """
-        self.panel_fields[panel].append((field, log))
+        if 'c' not in kwargs and 'color' not in kwargs:
+            kwargs['color'] = 'C{}'.format(self.color_ind[panel])
+            self.color_ind[panel] += 1
+        self.panel_fields[panel].append((field, log, kwargs))
 
-class ScalarPlotter(SingleFiletypePlotter):
+class ScalarPlotter(SingleTypeReader):
     """
     A class for plotting traces of scalar values from dedalus output.
 
@@ -89,14 +94,18 @@ class ScalarPlotter(SingleFiletypePlotter):
             Contains NumPy arrays of scalar traces from files
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, roll_writes=None, **kwargs):
         """
         Initializes the scalar plotter.
 
         # Arguments
             *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
-        super(ScalarPlotter, self).__init__(*args, distribution='single', **kwargs)
+        super().__init__(*args, distribution='single', **kwargs)
+        if roll_writes is not None:
+            self.rolled_reader = SingleTypeReader(*args, distribution='single', roll_writes=roll_writes, **kwargs)
+        else:
+            self.rolled_reader = None
         self.fields = []
         self.trace_data = None
 
@@ -112,7 +121,7 @@ class ScalarPlotter(SingleFiletypePlotter):
         self.figures = fig_list
         for fig in self.figures:
             for field_list in fig.panel_fields:
-                for fd, log in field_list:
+                for fd, log, kwargs in field_list:
                     if fd not in self.fields:
                         self.fields.append(fd)
 
@@ -121,15 +130,22 @@ class ScalarPlotter(SingleFiletypePlotter):
         with self.my_sync:
             if self.idle: return
             self.trace_data = OrderedDict()
-            for f in self.fields: self.trace_data[f] = []
+            for f in self.fields: 
+                self.trace_data[f] = []
+                if self.rolled_reader is not None:
+                    self.trace_data['rolled_{}'.format(f)] = []
             self.trace_data['sim_time'] = []
-            while self.files_remain([], self.fields):
-                bs, tsk, writenum, times = self.read_next_file()
-                for f in self.fields: self.trace_data[f].append(tsk[f].flatten())
-                self.trace_data['sim_time'].append(times)
+            while self.writes_remain():
+                dsets, ni, rdsets, ri = self.get_dsets(self.fields)
+                for f in self.fields: 
+                    self.trace_data[f].append(dsets[f][ni].squeeze())
+                    if rdsets is not None:
+                        self.trace_data['rolled_{}'.format(f)].append(rdsets[f][ri].squeeze())
+                
+                self.trace_data['sim_time'].append(dsets[f].dims[0]['sim_time'][ni])
 
-            for f in self.fields: self.trace_data[f] = np.concatenate(tuple(self.trace_data[f]))
-            self.trace_data['sim_time'] = np.concatenate(tuple(self.trace_data['sim_time']))
+            for f in self.fields: self.trace_data[f] = np.array(self.trace_data[f])
+            self.trace_data['sim_time'] = np.array(self.trace_data['sim_time'])
 
     def _clear_figures(self):
         """ Clear the axes on all figures """
@@ -145,6 +161,20 @@ class ScalarPlotter(SingleFiletypePlotter):
             for k, fd in self.trace_data.items():
                 f[k] = fd
 
+    def get_dsets(self, *args, **kwargs):
+        dsets, ni = super().get_dsets(*args, **kwargs)
+        if self.rolled_reader is not None:
+            rolled_dsets, ri = self.rolled_reader.get_dsets(*args, **kwargs)
+        else:
+            rolled_dsets = ri = None
+        return dsets, ni, rolled_dsets, ri
+
+    def writes_remain(self):
+        if self.rolled_reader is None:
+            return super().writes_remain()
+        else:
+            return super().writes_remain()*self.rolled_reader.writes_remain()
+
     def plot_figures(self, dpi=200):
         """ 
         Plot scalar traces vs. time
@@ -154,15 +184,20 @@ class ScalarPlotter(SingleFiletypePlotter):
                 image pixel density
         """
         with self.my_sync:
-            self._read_fields()
+            if self.trace_data is None:
+                self._read_fields()
             self._clear_figures()
             if self.idle: return
 
             for j, fig in enumerate(self.figures):
                 for i, k in enumerate(fig.panels):
                     ax = fig.axes[k]
-                    for fd, log in fig.panel_fields[i]:
-                        ax.plot(self.trace_data['sim_time'], self.trace_data[fd], label=fd)
+                    for fd, log, kwargs in fig.panel_fields[i]:
+                        ax.plot(self.trace_data['sim_time'], self.trace_data[fd], label=fd, **kwargs)
+                        if self.rolled_reader is not None:
+                            if 'lw' not in kwargs and 'linewidth' not in kwargs:
+                                kwargs['lw'] = 2
+                            ax.plot(self.trace_data['sim_time'], self.trace_data['rolled_{}'.format(fd)], label='rolled_{}'.format(fd), **kwargs)
                         if log:
                             ax.set_yscale('log')
                     ax.set_xlim(self.trace_data['sim_time'].min(), self.trace_data['sim_time'].max())
@@ -193,7 +228,8 @@ class ScalarPlotter(SingleFiletypePlotter):
         """
 
         with self.my_sync:
-            self._read_fields()
+            if self.trace_data is None:
+                self._read_fields()
             self._clear_figures()
             if self.idle: return
 
@@ -201,9 +237,15 @@ class ScalarPlotter(SingleFiletypePlotter):
                 for i, k in enumerate(fig.panels):
                     ax = fig.axes[k]
                     ax.grid(which='major')
-                    for fd, log in fig.panel_fields[i]:
-                        final_mean = np.mean(self.trace_data[fd][-int(0.1*len(self.trace_data[fd])):])
-                        ax.plot(self.trace_data['sim_time'], np.abs(1 - self.trace_data[fd]/final_mean), label="1 - ({:s})/(mean)".format(fd))
+                    for fd, log, kwargs in fig.panel_fields[i]:
+                        these_kwargs = kwargs.copy()
+                        if 'rolled_{}'.format(fd) in self.trace_data:
+                            final_mean = self.trace_data['rolled_{}'.format(fd)][-1]
+                            these_kwargs['label'] = "1 - ({:s})/(final rolled mean)".format(fd)
+                        else:
+                            final_mean = np.mean(self.trace_data[fd][-int(0.1*len(self.trace_data[fd])):])
+                            these_kwargs['label'] = "1 - ({:s})/(last 10% mean)".format(fd)
+                        ax.plot(self.trace_data['sim_time'], np.abs(1 - self.trace_data[fd]/final_mean), **these_kwargs)
                     ax.set_yscale('log')
                     ax.set_xlim(self.trace_data['sim_time'].min(), self.trace_data['sim_time'].max())
                     ax.legend(fontsize=8, loc='best')
