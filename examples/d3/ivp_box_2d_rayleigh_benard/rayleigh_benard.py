@@ -46,7 +46,7 @@ Nx, Nz = 64, 32
 Rayleigh = 1e6
 Prandtl = 1
 dealias = 3/2
-stop_sim_time = 30
+stop_sim_time = 100
 timestepper = d3.RK222
 max_timestep = 0.1
 dtype = np.float64
@@ -129,6 +129,13 @@ profiles.add_task(plane_avg(b), name='b')
 profiles.add_task(plane_avg(dot(ez, u*b)), name='conv_flux')
 profiles.add_task(plane_avg(dot(ez, -kappa*grad(b))), name='cond_flux')
 
+vol_avg = lambda A: d3.Integrate(d3.Integrate(A, coords['x']), coords['z'])
+scalars = solver.evaluator.add_file_handler('scalars', sim_dt=0.1, max_writes=np.inf)
+scalars.add_task(vol_avg(np.sqrt(dot(u,u))/nu), name='Re')
+scalars.add_task(1 + vol_avg(dot(ez, u*b)) / vol_avg(dot(ez, -kappa*grad(b))), name='Nu')
+
+file_handlers = [snapshots, profiles, scalars]
+
 # CFL
 CFL = d3.CFL(solver, initial_dt=max_timestep, cadence=10, safety=0.5, threshold=0.1,
              max_change=1.5, min_change=0.5, max_dt=max_timestep)
@@ -158,3 +165,6 @@ finally:
     logger.info('Run time: %.2f sec' %(end_time-start_time))
     logger.info('Run time: %f cpu-hr' %((end_time-start_time)/60/60*dist.comm.size))
 
+if dist.comm_cart.rank == 0:
+    for handler in file_handlers:
+        handler.process_virtual_file()
