@@ -155,7 +155,15 @@ class Colormesh:
         self.first = False
         return plot, cb
 
-CartesianColormesh = Colormesh
+
+class CartesianColormesh(Colormesh):
+
+     def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
+        plot, cb = super().plot_colormesh(ax, cax, dset, ni, **kwargs)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        return plot, cb
+
 
 class PolarColormesh(Colormesh):
 
