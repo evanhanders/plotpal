@@ -395,6 +395,8 @@ class SlicePlotter(SingleTypeReader):
             if self.idle: return
 
             while self.writes_remain():
+                for ax in axs: ax.clear()
+                for cax in caxs: cax.clear()
                 dsets, ni = self.get_dsets(tasks)
                 time_data = dsets[self.colormeshes[0][1].task].dims[0]
 
@@ -405,6 +407,4 @@ class SlicePlotter(SingleTypeReader):
 
                 plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
-                for ax in axs: ax.clear()
-                for cax in caxs: cax.clear()
 
