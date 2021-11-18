@@ -271,8 +271,11 @@ class SingleTypeReader():
                 if c > 0:
                     local_indices.append(np.arange(c, dtype=np.int64) + self.starts[i])
                     file_num.append(i*np.ones(c, dtype=np.int64))
-            self.file_index = np.concatenate(local_indices, dtype=np.int64)
-            self.file_num   = np.concatenate(file_num, dtype=np.int64)
+            if len(local_indices) >= 1:
+                self.file_index = np.array(np.concatenate(local_indices), dtype=np.int64)
+                self.file_num   = np.array(np.concatenate(file_num), dtype=np.int64)
+            else:
+                raise ValueError("No merged or virtual files found")
 
             self.current_write = -1
             self.current_file_handle = None

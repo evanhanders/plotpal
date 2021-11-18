@@ -48,7 +48,7 @@ class Colormesh:
                               remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', \
                               pos_def=False, \
                               vmin=None, vmax=None, log=False, vector_ind=None, \
-                              label=None, linked_cm=None):
+                              label=None, linked_cm=None, cmap_exclusion=0.005):
         self.task = task
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -63,6 +63,7 @@ class Colormesh:
         self.pos_def = pos_def
         self.vmin = vmin
         self.vmax = vmax
+        self.cmap_exclusion = cmap_exclusion
 
         self.cmap = cmap
         self.label = label
@@ -100,12 +101,12 @@ class Colormesh:
             if self.pos_def:
                 vals = np.sort(vals)
                 if np.mean(vals) < 0:
-                    vmin, vmax = vals[int(0.002*len(vals))], 0
+                    vmin, vmax = vals[int(self.cmap_exclusion*len(vals))], 0
                 else:
-                    vmin, vmax = 0, vals[int(0.998*len(vals))]
+                    vmin, vmax = 0, vals[int((1-self.cmap_exclusion)*len(vals))]
             else:
                 vals = np.sort(np.abs(vals))
-                vmax = vals[int(0.998*len(vals))]
+                vmax = vals[int((1-self.cmap_exclusion)*len(vals))]
                 vmin = -vmax
 
             if self.vmin is not None:
