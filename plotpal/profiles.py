@@ -159,7 +159,7 @@ class RolledProfilePlotter(SingleTypeReader):
                     axs.append(self.grid.axes[k])
         return axs
 
-    def add_line(self, basis, task, grid_num=None, **kwargs):
+    def add_line(self, basis, task, grid_num=None, ylim=(None, None), **kwargs):
         if grid_num is None:
             raise ValueError("Must specify an index grid_num >= 0")
         if 'color' not in kwargs and 'c' not in kwargs:
@@ -167,7 +167,7 @@ class RolledProfilePlotter(SingleTypeReader):
             self.color_ind += 1
         if 'label' not in kwargs:
             kwargs['label'] = task
-        self.lines.append((grid_num, basis, task, kwargs))
+        self.lines.append((grid_num, basis, task, ylim, kwargs))
 
     def plot_lines(self, start_fig=1, dpi=200):
 
@@ -194,11 +194,12 @@ class RolledProfilePlotter(SingleTypeReader):
                 time_data = dsets[tasks[0]].dims[0]
 
                 for line_data in self.lines:
-                    ind, basis, task, kwargs = line_data
+                    ind, basis, task, ylim, kwargs = line_data
                     ax = axs[ind]
                     dset = dsets[task]
                     x = match_basis(dset, basis)
                     ax.plot(x, dset[ni].squeeze(), **kwargs)
+                    ax.set_ylim(*ylim)
                     ax.legend()
                     ax.set_xlabel(basis)
 
