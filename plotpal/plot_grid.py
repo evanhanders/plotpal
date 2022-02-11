@@ -15,7 +15,7 @@ class PlotGrid:
         self.nrows, self.ncols = 0, 0
         self.axes, self.cbar_axes = {}, {}
 
-    def add_axis(self, row_num=None, col_num=None, row_span=1, col_span=1, cbar=False, polar=False, mollweide=False, orthographic=False):
+    def add_axis(self, row_num=None, col_num=None, row_span=1, col_span=1, cbar=False, polar=False, mollweide=False, orthographic=False, threeD=False):
         if row_num is None or col_num is None:
             raise ValueError("Must specify row_num and col_num in PlotGrid.add_axis")
         subplot_kwargs = {'polar' : polar}
@@ -27,6 +27,8 @@ class PlotGrid:
                 subplot_kwargs['projection'] = ccrs.Orthographic(180, 45)
             except:
                 raise ImportError("Cartopy must be installed for orthographic projections in plotpal")
+        elif threeD:
+            subplot_kwargs['projection'] = '3d'
 
         this_spec = {}
         this_spec['row_num'] = row_num
@@ -72,14 +74,14 @@ class PlotGrid:
 
 class RegularPlotGrid(PlotGrid):
 
-    def __init__(self, num_rows=1, num_cols=1, cbar=False, polar=False, mollweide=False, orthographic=False, **kwargs):
+    def __init__(self, num_rows=1, num_cols=1, cbar=False, polar=False, mollweide=False, orthographic=False, threeD=False, **kwargs):
         self.num_rows     = num_rows
         self.num_cols     = num_cols
         super().__init__(**kwargs)
 
         for i in range(num_rows):
             for j in range(num_cols):
-                self.add_axis(row_num=i, col_num=j, row_span=1, col_span=1, cbar=cbar, polar=polar, mollweide=mollweide, orthographic=orthographic)
+                self.add_axis(row_num=i, col_num=j, row_span=1, col_span=1, cbar=cbar, polar=polar, mollweide=mollweide, orthographic=orthographic, threeD=threeD)
         self.make_subplots()
 
 RegularColorbarPlotGrid = lambda *a, **kw: RegularPlotGrid(*a, cbar=True, **kw)

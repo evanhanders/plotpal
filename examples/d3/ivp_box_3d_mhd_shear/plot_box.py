@@ -39,4 +39,4 @@ plotter = BoxPlotter(root_dir, file_dir=data_dir, out_name=out_name, start_file=
 # Just plot a single plot (1x1 grid) of the field "b"
 plotter.setup_grid(num_rows=1, num_cols=1)
 plotter.add_box(left='w side',right='w front', top='w top', x_basis='x', y_basis='y',z_basis='z')
-plotter.plot_box(start_fig=start_fig, dpi=int(args['--dpi']))
+plotter.plot_boxes(start_fig=start_fig, dpi=int(args['--dpi']))
