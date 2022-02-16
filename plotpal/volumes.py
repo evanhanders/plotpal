@@ -225,21 +225,24 @@ class Box:
         xy_side = construct_surface_dict(self.x, self.y, self.Lz, top_field)
         xz_side = construct_surface_dict(self.x, self.Ly, self.z, right_field)
         yz_side = construct_surface_dict(self.Lx, self.y, self.z, left_field)
-
-        cmap = plt.cm.RdBu_r
+        
+        
+        cmap = matplotlib.cm.get_cmap(self.cmap)
+        vmin, vmax = self._get_minmax(left_field)
+        self.current_vmin, self.current_vmax = vmin, vmax
+        norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
         for d in [xy_side, xz_side, yz_side]:
             x = d['x']
             y = d['y']
             z = d['z']
-            sfc = cmap(d['surfacecolor'])
+            sfc = cmap(norm(d['surfacecolor']))
             surf = ax.plot_surface(x, y, z, facecolors=sfc, cstride=1, rstride=1, linewidth=0, antialiased=False, shade=False)
-            
+            ax.plot_wireframe(x, y, z, ccount=1, rcount=1, linewidth=1, color='black')
         
         
 
         ax.view_init(azim=25, elev=10)
-        vmin, vmax = self._get_minmax(left_field)
-        self.current_vmin, self.current_vmax = vmin, vmax
+
 
         
         
