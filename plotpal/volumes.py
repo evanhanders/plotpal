@@ -94,7 +94,7 @@ def construct_surface_dict(x_vals, y_vals, z_vals, data_vals, x_bounds=None, y_b
     side_info['surfacecolor'] = np.where(side_bool, data_vals, np.nan)
 
     return side_info
-#turn colormesh into box with info on left side right side top, x, y and z basis, and colourmap
+
 class Box:
     """
     A struct containing information about a slice colormesh plot
@@ -111,37 +111,30 @@ class Box:
 
     """
 
-    def __init__(self, left, right, top, left_mid=None , right_mid=None, top_mid=None, x_basis='x', y_basis='y',z_basis='z', cmap='RdBu_r', \
-                              pos_def=False, \
-                              vmin=None, vmax=None, log=False, vector_ind=None, \
-                              label=None, cmap_exclusion=0.005):
+    def __init__(self, left, right, top, left_mid=None , right_mid=None, top_mid=None, x_basis='x',\ y_basis='y',z_basis='z', cmap='RdBu_r', pos_def=False, vmin=None, vmax=None, log=False,\ vector_ind=None, label=None, cmap_exclusion=0.005, azim=25, elev=10):
         
         self.first=True
-        self.log=log
-        self.x_basis = x_basis
-        self.y_basis = y_basis
-        self.z_basis = z_basis
-        self.vector_ind = vector_ind
         self.left=left
         self.right=right
         self.top=top
         self.left_mid=left_mid
         self.right_mid=right_mid
         self.top_mid=top_mid
-
-
+        self.x_basis = x_basis
+        self.y_basis = y_basis
+        self.z_basis = z_basis
+        self.cmap = cmap
         self.pos_def = pos_def
         self.vmin = vmin
         self.vmax = vmax
-        self.cmap_exclusion = cmap_exclusion
-
-        self.cmap = cmap
+        self.log=log
+        self.vector_ind = vector_ind
         self.label = label
-
-
+        self.cmap_exclusion = cmap_exclusion
+        self.azim = azim
+        self.elev=elev
 
     def _modify_field(self, field):
-        #Subtract out m = 0
 
         if self.log: 
             field = np.log10(np.abs(field))
@@ -149,9 +142,7 @@ class Box:
         return field
 
     def _get_minmax(self, field):
-        # Get colormap bounds
 
-        
         vals = np.sort(field.flatten())
         if self.pos_def:
             vals = np.sort(vals)
@@ -170,11 +161,6 @@ class Box:
             vmax = self.vmax
 
         return vmin, vmax
-        
-#TODO update all following functions accordingly for plotly
-    
-    
-
 
     def _setup_colorbar(self, cmap, cax, vmin, vmax):
         # Add and setup colorbar & label
@@ -189,11 +175,6 @@ class Box:
         cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
         cax.xaxis.set_ticks_position('bottom')
         if self.label is not None:
-            #if self.vector_ind is not None:
-                #cax.text(0.5, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='center')
-           # else:
-            #    cax.text(0.5, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='center')
-        #else:
             cax.text(0.5, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='center')
         return cb
      
@@ -272,8 +253,6 @@ class Box:
         side_list = [xy_side, xz_side, yz_side]
         if left_mid is not None:
             side_list = [xy_side, xz_side, yz_side, xy_mid, xz_mid, yz_mid]
-        
-        #print(side_list)
         for d in side_list:
             x = d['x']
             y = d['y']
@@ -282,19 +261,8 @@ class Box:
             surf = ax.plot_surface(x, y, z, facecolors=sfc, cstride=1, rstride=1, linewidth=0, antialiased=False, shade=False)
             ax.plot_wireframe(x, y, z, ccount=1, rcount=1, linewidth=1, color='black')
         
-        
-
-        ax.view_init(azim=25, elev=10)
-
-
-        
-        
-        #plot = ax.pcolormesh(self.xx, self.yy, field, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs)
-        #fig.add_trace(go.Surface(**xy_side, colorbar_x=0.15, cmin=vmin, cmax=vmax), 1, 1)
-        #fig.add_trace(go.Surface(**xz_side, showscale=False, cmin=vmin, cmax=vmax), 1, 1)
-        #fig.add_trace(go.Surface(**yz_side, showscale=False, cmin=vmin, cmax=vmax), 1, 1)
-
-        cb = self._setup_colorbar(cmap, cax, vmin, vmax) #replace with gio.surface etc
+        ax.view_init(self.azim, self.elev)
+        cb = self._setup_colorbar(cmap, cax, vmin, vmax)
         self.first = False
         return surf, cb
 
