@@ -23,7 +23,7 @@ import logging
 logger = logging.getLogger(__name__.split('.')[-1])
 
 
-def construct_surface_dict(x_vals, y_vals, z_vals, data_vals, x_bounds=None, y_bounds=None, z_bounds=None, bool_function=np.logical_or): #not sure how to make this with self things
+def construct_surface_dict(x_vals, y_vals, z_vals, data_vals, x_bounds=None, y_bounds=None, z_bounds=None, bool_function=np.logical_or):
     """
     Takes grid coordinates and data on grid and prepares it for 3D surface plotting in plotly
     
@@ -111,7 +111,7 @@ class Box:
 
     """
 
-    def __init__(self, left, right, top, x_basis='x', y_basis='y',z_basis='z', cmap='RdBu_r', \
+    def __init__(self, left, right, top, left_mid=None , right_mid=None, top_mid=None, x_basis='x', y_basis='y',z_basis='z', cmap='RdBu_r', \
                               pos_def=False, \
                               vmin=None, vmax=None, log=False, vector_ind=None, \
                               label=None, cmap_exclusion=0.005):
@@ -125,6 +125,9 @@ class Box:
         self.left=left
         self.right=right
         self.top=top
+        self.left_mid=left_mid
+        self.right_mid=right_mid
+        self.top_mid=top_mid
 
 
         self.pos_def = pos_def
@@ -207,10 +210,21 @@ class Box:
             self.Lx = x[-1]
             self.Ly = y[-1]
             self.Lz = z[-1]
+            self.x_mid = x[int(len(x)/2)]
+            self.y_mid = y[int(len(y)/2)]
+            self.z_mid = z[int(len(z)/2)]
+            self.x_min = x.min()
+            self.y_min = y.min()
+            self.z_min = z.min()
+            self.x_max = x.max()
+            self.y_max = y.max()
+            self.z_max = z.max()
 
         left_field = np.squeeze(dsets[self.left][ni,:])
         right_field = np.squeeze(dsets[self.right][ni,:])
         top_field = np.squeeze(dsets[self.top][ni,:])
+        
+        
         
         vector_ind = self.vector_ind
         if vector_ind is not None:
@@ -222,16 +236,45 @@ class Box:
         right_field = self._modify_field(right_field)
         top_field = self._modify_field(top_field)
         
-        xy_side = construct_surface_dict(self.x, self.y, self.Lz, top_field)
-        xz_side = construct_surface_dict(self.x, self.Ly, self.z, right_field)
-        yz_side = construct_surface_dict(self.Lx, self.y, self.z, left_field)
+
+        left_mid=self.left_mid
+        if left_mid is not None:
+            mid_left_field = np.squeeze(dsets[self.left_mid][ni,:])
+            mid_right_field = np.squeeze(dsets[self.right_mid][ni,:])
+            mid_top_field = np.squeeze(dsets[self.top_mid][ni,:])
+            
+            if vector_ind is not None:
+                mid_left_field = mid_left_field[vector_ind,:]
+                mid_right_field = mid_right_field[vector_ind,:]
+                mid_top_field = mid_top_field[vector_ind,:]
         
-        
+            mid_left_field = self._modify_field(mid_left_field)
+            mid_right_field = self._modify_field(mid_right_field)
+            mid_top_field = self._modify_field(mid_top_field)
+            
+            xy_side = construct_surface_dict(self.x, self.y, self.Lz, top_field,x_bounds=(self.x_min, self.x_mid), y_bounds=(self.y_min, self.y_mid))
+            xz_side = construct_surface_dict(self.x, self.Ly, self.z, right_field, x_bounds=(self.x_min, self.x_mid), z_bounds=(self.z_min, self.z_mid))
+            yz_side = construct_surface_dict(self.Lx, self.y, self.z, left_field, y_bounds=(self.y_min, self.y_mid), z_bounds=(self.z_min, self.z_mid))
+            
+            xy_mid = construct_surface_dict(self.x, self.y, self.z_mid, mid_top_field,x_bounds=(self.x_mid, self.x_max), y_bounds=(self.y_mid, self.y_max), bool_function=np.logical_and)
+            xz_mid = construct_surface_dict(self.x, self.y_mid, self.z, mid_right_field, x_bounds=(self.x_mid, self.x_max), z_bounds=(self.z_mid, self.z_max), bool_function=np.logical_and)
+            yz_mid = construct_surface_dict(self.x_mid, self.y, self.z, mid_left_field, y_bounds=(self.y_mid, self.y_max), z_bounds=(self.z_mid, self.z_max), bool_function=np.logical_and)
+            
+        else:
+            xy_side = construct_surface_dict(self.x, self.y, self.Lz, top_field)
+            xz_side = construct_surface_dict(self.x, self.Ly, self.z, right_field)
+            yz_side = construct_surface_dict(self.Lx, self.y, self.z, left_field)
+            
         cmap = matplotlib.cm.get_cmap(self.cmap)
         vmin, vmax = self._get_minmax(left_field)
         self.current_vmin, self.current_vmax = vmin, vmax
         norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
-        for d in [xy_side, xz_side, yz_side]:
+        side_list = [xy_side, xz_side, yz_side]
+        if left_mid is not None:
+            side_list = [xy_side, xz_side, yz_side, xy_mid, xz_mid, yz_mid]
+        
+        #print(side_list)
+        for d in side_list:
             x = d['x']
             y = d['y']
             z = d['z']
@@ -279,21 +322,25 @@ class BoxPlotter(SingleTypeReader):
             *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
         self.grid = None
+        self.cutout = False #this line says syntax error
         super(BoxPlotter, self).__init__(*args, distribution='even-write', **kwargs)
         self.counter = 0
         self.boxes = []
+        
 
     def setup_grid(self, *args, **kwargs):
         """ Initialize the plot grid for the colormeshes """
-        self.grid = RegularColorbarPlotGrid(*args, **kwargs, threeD=True)#copy past make subplots from ploty
-        #fig = go.Figure(layout={'width': 2000, 'height': 1000})
-        #self.grid = make_subplots(rows=1, cols=1, specs=[{'is_3d': True}], horizontal_spacing=0.0015) #how to make this general ... is this in the right place?
+        self.grid = RegularColorbarPlotGrid(*args, **kwargs, threeD=True)
 
 
     def add_box(self, *args, **kwargs):
         self.boxes.append((self.counter, Box(*args, **kwargs)))
-        self.counter += 1 #this is the function that is called in plot_box.py, it then calls on the Box class, so the Box class has left,right,top, and the the basis passed to it
-
+        self.counter += 1
+    
+    def add_cutout_box(self, *args, **kwargs):
+        self.boxes.append((self.counter, Box(*args, **kwargs))
+        self.cutout = True #need an argument for if statement on line 382
+        self.counter += 1
 
     def _groom_grid(self):
         """ Assign colormeshes to axes subplots in the plot grid """
@@ -321,20 +368,28 @@ class BoxPlotter(SingleTypeReader):
             kwargs :
                 extra keyword args for matplotlib.pyplot.pcolormesh
         """
+        
         with self.my_sync:
             axs, caxs = self._groom_grid()
             tasks = []
-            for k, bx in self.boxes:#loop over boxes and add all left right top to tasks
+            for k, bx in self.boxes:
                 if bx.left not in tasks:
                     tasks.append(bx.left)
                 if bx.right not in tasks:
                     tasks.append(bx.right)
                 if bx.top not in tasks:
                     tasks.append(bx.top)
+                if self.cutout is True:
+                    if bx.left_mid not in tasks:
+                        tasks.append(bx.left_mid)
+                    if bx.right_mid not in tasks:
+                        tasks.append(bx.right_mid)
+                    if bx.top_mid not in tasks:
+                        tasks.append(bx.top_mid)
             if self.idle: return
 
             while self.writes_remain():
-                for ax in axs: ax.clear()#clear out plot in plotly self.fig.data = []
+                for ax in axs: ax.clear()
                 for cax in caxs: cax.clear()
                 dsets, ni = self.get_dsets(tasks)
                 time_data = dsets[tasks[0]].dims[0]
