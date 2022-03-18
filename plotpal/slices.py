@@ -48,7 +48,7 @@ class Colormesh:
                               remove_y_mean=False, divide_x_mean=False, cmap='RdBu_r', \
                               pos_def=False, \
                               vmin=None, vmax=None, log=False, vector_ind=None, \
-                              label=None, linked_cm=None, cmap_exclusion=0.005):
+                              label=None, linked_cbar_cm=None, linked_profile_cm=None, cmap_exclusion=0.005):
         self.task = task
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -71,20 +71,29 @@ class Colormesh:
         self.first = True
         self.xx, self.yy = None, None
 
-        self.linked_cm = linked_cm
+        self.linked_profile_cm = linked_profile_cm
+        self.linked_cbar_cm    = linked_cbar_cm
 
     def _modify_field(self, field):
-        #Subtract out m = 0
-        if self.remove_mean:
-            field -= np.mean(field)
-        elif self.remove_x_mean:
-            field -= np.mean(field, axis=0)
-        elif self.remove_y_mean:
-            field -= np.mean(field, axis=1)
+        if self.linked_profile_cm is not None:
+            self.removed_mean = self.linked_profile_cm.removed_mean
+            self.divided_mean = self.linked_profile_cm.divided_mean
+        else:
+            #Subtract out m = 0
+            self.removed_mean = 0
+            self.divided_mean = 1
+            if self.remove_mean:
+                self.removed_mean = np.mean(field)
+            elif self.remove_x_mean:
+                self.removed_mean = np.mean(field, axis=0)
+            elif self.remove_y_mean:
+                self.removed_mean = np.mean(field, axis=1)
 
-        #Scale by magnitude of m = 0
-        if self.divide_x_mean:
-            field /= np.mean(np.abs(field), axis=0)
+            #Scale by magnitude of m = 0
+            if self.divide_x_mean:
+                self.divided_mean = np.std(field, axis=0)
+        field -= self.removed_mean
+        field /= self.divided_mean
 
         if self.log: 
             field = np.log10(np.abs(field))
@@ -94,8 +103,8 @@ class Colormesh:
     def _get_minmax(self, field):
         # Get colormap bounds
 
-        if self.linked_cm is not None:
-            return self.linked_cm.current_vmin, self.linked_cm.current_vmax
+        if self.linked_cbar_cm is not None:
+            return self.linked_cbar_cm.current_vmin, self.linked_cbar_cm.current_vmax
         else:
             vals = np.sort(field.flatten())
             if self.pos_def:
@@ -129,13 +138,14 @@ class Colormesh:
         cax.tick_params(direction='in', pad=1)
         cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
         cax.xaxis.set_ticks_position('bottom')
-        if self.label is None:
-            if self.vector_ind is not None:
-                cax.text(0.5, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='center')
+        if  self.linked_cbar_cm is None:
+            if self.label is None:
+                if self.vector_ind is not None:
+                    cax.text(0.5, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='center')
+                else:
+                    cax.text(0.5, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='center')
             else:
-                cax.text(0.5, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='center')
-        else:
-            cax.text(0.5, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='center')
+                cax.text(0.5, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='center')
         return cb
 
     def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
@@ -345,24 +355,46 @@ class SlicePlotter(SingleTypeReader):
             these_kwargs = kwargs.copy()
             these_kwargs['label'] = ''
             self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **these_kwargs)))
-            self.colormeshes.append((self.counter, MeridionalColormesh(right, linked_cm=self.colormeshes[-1][1], **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(right, linked_cbar_cm=self.colormeshes[-1][1], **kwargs)))
         self.counter += 1
 
     def add_ball_shell_polar_colormesh(self, ball=None, shell=None, r_inner=None, r_outer=None, **kwargs):
         if ball is not None and shell is not None:
             self.colormeshes.append((self.counter, PolarColormesh(ball, r_inner=0, r_outer=r_inner, **kwargs)))
-            self.colormeshes.append((self.counter, PolarColormesh(shell, r_inner=r_inner, r_outer=r_outer, linked_cm=self.colormeshes[-1][1], **kwargs)))
+            self.colormeshes.append((self.counter, PolarColormesh(shell, r_inner=r_inner, r_outer=r_outer, linked_cbar_cm=self.colormeshes[-1][1], **kwargs)))
         self.counter += 1
 
     def add_ball_shell_meridional_colormesh(self, ball_left=None, ball_right=None, shell_left=None, shell_right=None, r_inner=None, r_outer=None, **kwargs):
         if ball_left is not None and shell_left is not None and ball_right is not None and shell_right is not None:
             self.colormeshes.append((self.counter, MeridionalColormesh(ball_left, left=True, r_inner=0, r_outer=r_inner, **kwargs)))
             first_cm = self.colormeshes[-1][1]
-            self.colormeshes.append((self.counter, MeridionalColormesh(ball_right, r_inner=0, r_outer=r_inner, linked_cm=first_cm, **kwargs)))
-            self.colormeshes.append((self.counter, MeridionalColormesh(shell_left, left=True, r_inner=r_inner, r_outer=r_outer, linked_cm=first_cm, **kwargs)))
-            self.colormeshes.append((self.counter, MeridionalColormesh(shell_right, r_inner=r_inner, r_outer=r_outer, linked_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(ball_right, r_inner=0, r_outer=r_inner, linked_cbar_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(shell_left, left=True, r_inner=r_inner, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(shell_right, r_inner=r_inner, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
         self.counter += 1
 
+    def add_ball_2shells_polar_colormesh(self, fields=list(), r_stitches=(0.5, 1), r_outer=1.5, **kwargs):
+        if len(fields) == 3:
+            self.colormeshes.append((self.counter, PolarColormesh(fields[0], r_inner=0, r_outer=r_stitches[0], **kwargs)))
+            self.colormeshes.append((self.counter, PolarColormesh(fields[1], r_inner=r_stitches[0], r_outer=r_stitches[1], linked_cbar_cm=self.colormeshes[-1][1], **kwargs)))
+            self.colormeshes.append((self.counter, PolarColormesh(fields[2], r_inner=r_stitches[1], r_outer=r_outer, linked_cbar_cm=self.colormeshes[-2][1], **kwargs)))
+        else:
+            raise ValueError("Must specify 3 fields for ball_2shells_polar_colormesh")
+        self.counter += 1
+
+    def add_ball_2shells_meridional_colormesh(self, left_fields=list(), right_fields=list(),
+                                              r_stitches=(0.5, 1), r_outer=1.5, **kwargs):
+        if len(left_fields) == 3 and len(right_fields) == 3:
+            self.colormeshes.append((self.counter, MeridionalColormesh(left_fields[0], left=True, r_inner=0, r_outer=r_stitches[0], **kwargs)))
+            first_cm = self.colormeshes[-1][1]
+            self.colormeshes.append((self.counter, MeridionalColormesh(right_fields[0], left=False, r_inner=0, r_outer=r_stitches[0], linked_profile_cm=self.colormeshes[-1][1], linked_cbar_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(left_fields[1], left=True, r_inner=r_stitches[0], r_outer=r_stitches[1], linked_cbar_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(right_fields[1], left=False, r_inner=r_stitches[0], r_outer=r_stitches[1], linked_profile_cm=self.colormeshes[-1][1], linked_cbar_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(left_fields[2], left=True, r_inner=r_stitches[1], r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(right_fields[2], left=False, r_inner=r_stitches[1], r_outer=r_outer, linked_profile_cm=self.colormeshes[-1][1], linked_cbar_cm=first_cm, **kwargs)))
+        else:
+            raise ValueError("Must specify 3 left and right fields for ball_2shells_meridional_colormesh")
+        self.counter += 1
 
     def _groom_grid(self):
         """ Assign colormeshes to axes subplots in the plot grid """
