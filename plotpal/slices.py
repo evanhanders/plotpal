@@ -74,6 +74,8 @@ class Colormesh:
         self.linked_profile_cm = linked_profile_cm
         self.linked_cbar_cm    = linked_cbar_cm
 
+        self.color_plot = None
+
     def _modify_field(self, field):
         if self.linked_profile_cm is not None:
             self.removed_mean = self.linked_profile_cm.removed_mean
@@ -161,10 +163,14 @@ class Colormesh:
         vmin, vmax = self._get_minmax(field)
         self.current_vmin, self.current_vmax = vmin, vmax
 
-        plot = ax.pcolormesh(self.xx, self.yy, field, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs)
-        cb = self._setup_colorbar(plot, cax, vmin, vmax)
+        if self.color_plot is None:
+            self.color_plot = ax.pcolormesh(self.xx, self.yy, field, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs)
+        else:
+            self.color_plot.set_clim(vmin, vmax)
+            self.color_plot.set_array(field)
+        cb = self._setup_colorbar(self.color_plot, cax, vmin, vmax)
         self.first = False
-        return plot, cb
+        return self.color_plot, cb
 
 
 class CartesianColormesh(Colormesh):
@@ -428,7 +434,7 @@ class SlicePlotter(SingleTypeReader):
             if self.idle: return
 
             while self.writes_remain():
-                for ax in axs: ax.clear()
+#                for ax in axs: ax.clear()
                 for cax in caxs: cax.clear()
                 dsets, ni = self.get_dsets(tasks)
                 time_data = dsets[self.colormeshes[0][1].task].dims[0]
