@@ -311,10 +311,10 @@ class SingleTypeReader():
                     self.current_file_handle = h5py.File(self.current_file_name, 'r')
                 return True
 
-    def get_dsets(self, tasks):
+    def get_dsets(self, tasks, verbose=True):
         """ Given a list of task strings, returns a dictionary of the associated datasets. """
         if not self.idle:
-            if self.comm.rank == 0:
+            if self.comm.rank == 0 and verbose:
                 print('gathering {} tasks; write {}/{} on process 0'.format(tasks, self.current_write+1, self.writes))
                 stdout.flush()
 
