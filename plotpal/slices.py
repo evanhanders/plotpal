@@ -164,10 +164,10 @@ class Colormesh:
         self.current_vmin, self.current_vmax = vmin, vmax
 
         if self.color_plot is None:
-            self.color_plot = ax.pcolormesh(self.xx, self.yy, field, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs)
+            self.color_plot = ax.pcolormesh(self.xx, self.yy, field.real, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs, shading='nearest')
         else:
             self.color_plot.set_clim(vmin, vmax)
-            self.color_plot.set_array(field)
+            self.color_plot.set_array(field.real)
         cb = self._setup_colorbar(self.color_plot, cax, vmin, vmax)
         self.first = False
         return self.color_plot, cb
