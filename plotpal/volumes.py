@@ -241,9 +241,9 @@ class Box:
             mid_right_field = self._modify_field(mid_right_field)
             mid_top_field = self._modify_field(mid_top_field)
             
-            xy_side = construct_surface_dict(self.x, self.y, self.Lz, top_field,x_bounds=(self.x_min, self.x_mid), y_bounds=(self.y_min, self.y_mid))
-            xz_side = construct_surface_dict(self.x, self.Ly, self.z, right_field, x_bounds=(self.x_min, self.x_mid), z_bounds=(self.z_min, self.z_mid))
-            yz_side = construct_surface_dict(self.Lx, self.y, self.z, left_field, y_bounds=(self.y_min, self.y_mid), z_bounds=(self.z_min, self.z_mid))
+            xy_side = construct_surface_dict(self.x, self.y, self.z_max, top_field,x_bounds=(self.x_min, self.x_mid), y_bounds=(self.y_min, self.y_mid))
+            xz_side = construct_surface_dict(self.x, self.y_max, self.z, right_field, x_bounds=(self.x_min, self.x_mid), z_bounds=(self.z_min, self.z_mid))
+            yz_side = construct_surface_dict(self.x_max, self.y, self.z, left_field, y_bounds=(self.y_min, self.y_mid), z_bounds=(self.z_min, self.z_mid))
             
             xy_mid = construct_surface_dict(self.x, self.y, self.z_mid, mid_top_field,x_bounds=(self.x_mid, self.x_max), y_bounds=(self.y_mid, self.y_max), bool_function=np.logical_and)
             xz_mid = construct_surface_dict(self.x, self.y_mid, self.z, mid_right_field, x_bounds=(self.x_mid, self.x_max), z_bounds=(self.z_mid, self.z_max), bool_function=np.logical_and)
