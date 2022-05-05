@@ -11,11 +11,11 @@ from dedalus.tools.parallel import Sync
 from collections import OrderedDict
 from plotpal.file_reader import SingleTypeReader, match_basis
 from plotpal.plot_grid import RegularColorbarPlotGrid
-import plotly
-import plotly.graph_objects as go
-import plotly.io as pio
-from plotly.subplots import make_subplots
-from plotly.offline import plot_mpl, init_notebook_mode
+#import plotly
+#import plotly.graph_objects as go
+#import plotly.io as pio
+#from plotly.subplots import make_subplots
+#from plotly.offline import plot_mpl, init_notebook_mode
 
 import numpy as np
 
@@ -47,20 +47,22 @@ def construct_surface_dict(x_vals, y_vals, z_vals, data_vals, x_bounds=None, y_b
         
     Returns a dictionary of keyword arguments for plotly's surface plot function
     """
-    
-        
-    if type(x_vals) == np.ndarray and type(y_vals) == np.ndarray :
+    x_vals=np.array(x_vals)    
+    y_vals=np.array(y_vals)    
+    z_vals=np.array(z_vals)    
+    if z_vals.size == 1: #np.ndarray and type(y_vals) == np.ndarray :
         yy, xx = np.meshgrid(y_vals, x_vals)
         zz = z_vals * np.ones_like(xx)
-    elif type(x_vals) == np.ndarray and type(z_vals) == np.ndarray :
+    elif y_vals.size  == 1: # np.ndarray and type(z_vals) == np.ndarray :
         zz, xx = np.meshgrid(z_vals, x_vals)
         yy = y_vals * np.ones_like(xx)
-    elif type(y_vals) == np.ndarray and type(z_vals) == np.ndarray :
+    elif x_vals.size == 1: #np.ndarray and type(z_vals) == np.ndarray :
         zz, yy = np.meshgrid(z_vals, y_vals)
         xx = x_vals * np.ones_like(yy)
-
+    else:
+        raise ValueError('x,y,or z values must have size 1')
     if x_bounds is None:
-        if type(y_vals) == np.ndarray and type(z_vals) == np.ndarray and bool_function == np.logical_or :
+        if x_vals.size == 1 and bool_function == np.logical_or :
             x_bool = np.zeros_like(yy)
         else:
             x_bool = np.ones_like(yy)
@@ -68,7 +70,7 @@ def construct_surface_dict(x_vals, y_vals, z_vals, data_vals, x_bounds=None, y_b
         x_bool = (xx >= x_bounds[0])*(xx <= x_bounds[1])
 
     if y_bounds is None:
-        if type(x_vals) == np.ndarray and type(z_vals) == np.ndarray and bool_function == np.logical_or :
+        if y_vals.size == 1 and bool_function == np.logical_or :
             y_bool = np.zeros_like(xx)
         else:
             y_bool = np.ones_like(xx)
@@ -76,7 +78,7 @@ def construct_surface_dict(x_vals, y_vals, z_vals, data_vals, x_bounds=None, y_b
         y_bool = (yy >= y_bounds[0])*(yy <= y_bounds[1])
 
     if z_bounds is None:
-        if type(x_vals) == np.ndarray and type(y_vals) == np.ndarray and bool_function == np.logical_or :
+        if z_vals.size  == 1 and bool_function == np.logical_or :
             z_bool = np.zeros_like(xx)
         else:
             z_bool = np.ones_like(xx)
@@ -111,7 +113,9 @@ class Box:
 
     """
 
-    def __init__(self, left, right, top, left_mid=None , right_mid=None, top_mid=None, x_basis='x',\ y_basis='y',z_basis='z', cmap='RdBu_r', pos_def=False, vmin=None, vmax=None, log=False,\ vector_ind=None, label=None, cmap_exclusion=0.005, azim=25, elev=10):
+    def __init__(self, left, right, top, left_mid=None , right_mid=None, top_mid=None, x_basis='x',\
+     y_basis='y',z_basis='z', cmap='RdBu_r', pos_def=False, vmin=None, vmax=None, log=False,\
+     vector_ind=None, label=None, cmap_exclusion=0.005, azim=25, elev=10):
         
         self.first=True
         self.left=left
@@ -133,7 +137,11 @@ class Box:
         self.cmap_exclusion = cmap_exclusion
         self.azim = azim
         self.elev=elev
-
+        if left_mid is not None and right_mid is not None and top_mid is not None:
+            self.cutout=True
+        else:
+            self.cutout=False
+            
     def _modify_field(self, field):
 
         if self.log: 
@@ -188,9 +196,9 @@ class Box:
             self.x = x
             self.y = y
             self.z = z
-            self.Lx = x[-1]
-            self.Ly = y[-1]
-            self.Lz = z[-1]
+            self.Lx = x[-1] - x[0]
+            self.Ly = y[-1] - y[0]
+            self.Lz = z[-1] - z[0] 
             self.x_mid = x[int(len(x)/2)]
             self.y_mid = y[int(len(y)/2)]
             self.z_mid = z[int(len(z)/2)]
@@ -219,7 +227,7 @@ class Box:
         
 
         left_mid=self.left_mid
-        if left_mid is not None:
+        if self.cutout:
             mid_left_field = np.squeeze(dsets[self.left_mid][ni,:])
             mid_right_field = np.squeeze(dsets[self.right_mid][ni,:])
             mid_top_field = np.squeeze(dsets[self.top_mid][ni,:])
@@ -242,16 +250,16 @@ class Box:
             yz_mid = construct_surface_dict(self.x_mid, self.y, self.z, mid_left_field, y_bounds=(self.y_mid, self.y_max), z_bounds=(self.z_mid, self.z_max), bool_function=np.logical_and)
             
         else:
-            xy_side = construct_surface_dict(self.x, self.y, self.Lz, top_field)
-            xz_side = construct_surface_dict(self.x, self.Ly, self.z, right_field)
-            yz_side = construct_surface_dict(self.Lx, self.y, self.z, left_field)
+            xy_side = construct_surface_dict(self.x, self.y, self.z_max, top_field)
+            xz_side = construct_surface_dict(self.x, self.y_max, self.z, right_field)
+            yz_side = construct_surface_dict(self.x_max, self.y, self.z, left_field)
             
         cmap = matplotlib.cm.get_cmap(self.cmap)
         vmin, vmax = self._get_minmax(left_field)
         self.current_vmin, self.current_vmax = vmin, vmax
         norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
         side_list = [xy_side, xz_side, yz_side]
-        if left_mid is not None:
+        if self.cutout:
             side_list = [xy_side, xz_side, yz_side, xy_mid, xz_mid, yz_mid]
         for d in side_list:
             x = d['x']
@@ -290,7 +298,6 @@ class BoxPlotter(SingleTypeReader):
             *args, **kwargs : Additional keyword arguments for super().__init__() 
         """
         self.grid = None
-        self.cutout = False #this line says syntax error
         super(BoxPlotter, self).__init__(*args, distribution='even-write', **kwargs)
         self.counter = 0
         self.boxes = []
@@ -306,8 +313,7 @@ class BoxPlotter(SingleTypeReader):
         self.counter += 1
     
     def add_cutout_box(self, *args, **kwargs):
-        self.boxes.append((self.counter, Box(*args, **kwargs))
-        self.cutout = True #need an argument for if statement on line 382
+        self.boxes.append((self.counter, Box(*args, **kwargs)))
         self.counter += 1
 
     def _groom_grid(self):
@@ -347,7 +353,7 @@ class BoxPlotter(SingleTypeReader):
                     tasks.append(bx.right)
                 if bx.top not in tasks:
                     tasks.append(bx.top)
-                if self.cutout is True:
+                if bx.cutout:
                     if bx.left_mid not in tasks:
                         tasks.append(bx.left_mid)
                     if bx.right_mid not in tasks:
