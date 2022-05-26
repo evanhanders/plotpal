@@ -18,6 +18,7 @@ Options:
 from docopt import docopt
 args = docopt(__doc__)
 from plotpal.profiles import RolledProfilePlotter
+from plotpal.file_reader import match_basis
 
 # Read in master output directory
 root_dir    = args['<root_dir>']
@@ -38,10 +39,16 @@ roll_writes = args['--roll_writes']
 if roll_writes is not None:
     roll_writes = int(roll_writes)
 
+def inv_T(ax, dictionary, index):
+    r = match_basis(dictionary['T profile'], 'r')
+    ax.plot(r, 1/dictionary['T profile'][index].ravel(), c='orange', ls='--')
+    
+
 # Create Plotter object, tell it which fields to plot
 plotter = RolledProfilePlotter(root_dir, file_dir=data_dir, out_name=subdir_name, roll_writes=roll_writes, start_file=start_file, n_files=n_files)
 plotter.setup_grid(num_rows=2, num_cols=1, col_inch=float(args['--col_inch']), row_inch=float(args['--row_inch']))
 plotter.add_line('r', 'T profile', grid_num=0)
+plotter.add_line('r', inv_T, grid_num=0, needed_tasks=['T profile',])
 plotter.add_line('r', 'conv luminosity', grid_num=1)
 plotter.add_line('r', 'cond luminosity', grid_num=1)
 plotter.plot_lines()

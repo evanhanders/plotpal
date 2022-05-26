@@ -159,15 +159,30 @@ class RolledProfilePlotter(SingleTypeReader):
                     axs.append(self.grid.axes[k])
         return axs
 
-    def add_line(self, basis, task, grid_num=None, ylim=(None, None), **kwargs):
-        if grid_num is None:
-            raise ValueError("Must specify an index grid_num >= 0")
+    def add_line(self, basis, task, grid_num, needed_tasks=None, ylim=(None, None), **kwargs):
+        """
+        Add a line to the plotter.
+
+        Parameters
+        ----------
+            basis : str
+                The name of the dedalus basis for the x-axis
+            task : str or python function
+                If str, must be the name of a profile
+                If function, must accept a matplotlib subplot axis (ax), a dictionary of datasets, as well as an integer for indexing
+            grid_num : int
+                Panel index for the plot
+            ylim (optional) : tuple of floats
+                Y-limits for the plot
+        """
         if 'color' not in kwargs and 'c' not in kwargs:
             kwargs['color'] = 'C' + str(self.color_ind)
             self.color_ind += 1
+        if type(task) != str and needed_tasks is None:
+            raise ValueError("must specify necessary tasks for your function.")
         if 'label' not in kwargs:
             kwargs['label'] = task
-        self.lines.append((grid_num, basis, task, ylim, kwargs))
+        self.lines.append((grid_num, basis, task, ylim, kwargs, needed_tasks))
 
     def plot_lines(self, start_fig=1, dpi=200):
 
@@ -187,19 +202,30 @@ class RolledProfilePlotter(SingleTypeReader):
             tasks = []
             for line_data in self.lines:
                 this_task = line_data[2]
-                if this_task not in tasks:
-                    tasks.append(this_task)
+                if type(this_task) == str:
+                    if this_task not in tasks:
+                        tasks.append(this_task)
+                else:
+                    needed_tasks = line_data[5]
+                    for task in needed_tasks:
+                        if task not in tasks:
+                            tasks.append(task)
+                    
             while self.writes_remain():
                 dsets, ni = self.get_dsets(tasks)
                 time_data = dsets[tasks[0]].dims[0]
 
                 for line_data in self.lines:
-                    ind, basis, task, ylim, kwargs = line_data
+                    ind, basis, task, ylim, kwargs, needed_tasks = line_data
                     ax = axs[ind]
-                    dset = dsets[task]
-                    x = match_basis(dset, basis)
-                    ax.plot(x, dset[ni].squeeze(), **kwargs)
-                    ax.set_ylim(*ylim)
+                    if type(task) == str:
+                        dset = dsets[task]
+                        x = match_basis(dset, basis)
+                        ax.plot(x, dset[ni].squeeze(), **kwargs)
+                    else:
+                        task(ax, dsets, ni)
+                    if ylim[0] is not None or ylim[1] is not None:
+                        ax.set_ylim(*ylim)
                     ax.legend()
                     ax.set_xlabel(basis)
 
