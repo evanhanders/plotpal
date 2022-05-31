@@ -278,7 +278,7 @@ class MeridionalColormesh(Colormesh):
 
     def _modify_field(self, field):
         field = super()._modify_field(field)
-        field = np.pad(field, ((0, 1), (1, 0)), mode='edge')
+        field = np.pad(field, ((1, 1), (1, 1)), mode='edge')
         return field
 
     def _get_pcolormesh_coordinates(self, dset):
