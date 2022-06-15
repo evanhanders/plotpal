@@ -163,11 +163,8 @@ class Colormesh:
         vmin, vmax = self._get_minmax(field)
         self.current_vmin, self.current_vmax = vmin, vmax
 
-        if self.color_plot is None:
-            self.color_plot = ax.pcolormesh(self.xx, self.yy, field.real, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs, shading='nearest')
-        else:
-            self.color_plot.set_clim(vmin, vmax)
-            self.color_plot.set_array(field.real)
+        self.color_plot = ax.pcolormesh(self.xx, self.yy, field.real, cmap=self.cmap, vmin=vmin, vmax=vmax, rasterized=True, **kwargs, shading='nearest')
+
         cb = self._setup_colorbar(self.color_plot, cax, vmin, vmax)
         self.first = False
         return self.color_plot, cb
@@ -437,13 +434,14 @@ class SlicePlotter(SingleTypeReader):
 #                for ax in axs: ax.clear()
                 for cax in caxs: cax.clear()
                 dsets, ni = self.get_dsets(tasks)
-                time_data = dsets[self.colormeshes[0][1].task].dims[0]
+                sim_time = self.current_file_handle['scales/sim_time'][ni]
+                write_num = self.current_file_handle['scales/write_number'][ni]
+#                time_data = dsets[self.colormeshes[0][1].task].dims[0]
 
                 for k, cm in self.colormeshes:
                     ax = axs[k]
                     cax = caxs[k]
                     cm.plot_colormesh(ax, cax, dsets[cm.task], ni, **kwargs)
-
-                plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
-                self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
+                plt.suptitle('t = {:.4e}'.format(sim_time))
+                self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(write_num+start_fig-1)), dpi=dpi, bbox_inches='tight')
 
