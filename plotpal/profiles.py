@@ -221,7 +221,7 @@ class RolledProfilePlotter(SingleTypeReader):
                 saved_profiles[k] = []
             while self.writes_remain():
                 dsets, ni = self.get_dsets(tasks)
-                time_data = dsets[tasks[0]].dims[0]
+                time_data = self.current_file_handle['scales']
                 if save_profiles:
                     saved_times.append(time_data['sim_time'][ni])
                     saved_writes.append(time_data['write_number'][ni])
