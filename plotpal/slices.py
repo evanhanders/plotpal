@@ -376,6 +376,20 @@ class SlicePlotter(SingleTypeReader):
             self.colormeshes.append((self.counter, MeridionalColormesh(shell_right, r_inner=r_inner, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
         self.counter += 1
 
+    def add_shell_shell_meridional_colormesh(self, left=None, right=None, r_inner=None, r_stitch=None, r_outer=None, **kwargs):
+        if len(left) != 2 or len(right) != 2:
+            raise ValueError("'left' and 'right' must be two-item tuples or lists of strings.")
+        if r_inner is None or r_stitch is None or r_outer is None:
+            raise ValueError("r_inner, r_stitch, and r_outer must be specified")
+        self.colormeshes.append((self.counter, MeridionalColormesh(left[0], left=True, r_inner=r_inner, r_outer=r_stitch, **kwargs)))
+        first_cm = self.colormeshes[-1][1]
+        self.colormeshes.append((self.counter, MeridionalColormesh(right[0], r_inner=r_inner, r_outer=r_stitch, linked_cbar_cm=first_cm, **kwargs)))
+        self.colormeshes.append((self.counter, MeridionalColormesh(left[1], left=True, r_inner=r_stitch, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
+        self.colormeshes.append((self.counter, MeridionalColormesh(right[1], r_inner=r_stitch, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
+        self.counter += 1
+
+
+
     def add_ball_2shells_polar_colormesh(self, fields=list(), r_stitches=(0.5, 1), r_outer=1.5, **kwargs):
         if len(fields) == 3:
             self.colormeshes.append((self.counter, PolarColormesh(fields[0], r_inner=0, r_outer=r_stitches[0], **kwargs)))
@@ -437,11 +451,14 @@ class SlicePlotter(SingleTypeReader):
                 sim_time = self.current_file_handle['scales/sim_time'][ni]
                 write_num = self.current_file_handle['scales/write_number'][ni]
 #                time_data = dsets[self.colormeshes[0][1].task].dims[0]
-
                 for k, cm in self.colormeshes:
                     ax = axs[k]
                     cax = caxs[k]
                     cm.plot_colormesh(ax, cax, dsets[cm.task], ni, **kwargs)
                 plt.suptitle('t = {:.4e}'.format(sim_time))
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(write_num+start_fig-1)), dpi=dpi, bbox_inches='tight')
+                
+                for k, cm in self.colormeshes:
+                    axs[k].cla()
+                    caxs[k].cla()
 
