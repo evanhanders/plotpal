@@ -338,4 +338,5 @@ class SingleTypeReader():
                     output[k] = RolledDset(base_dset, ni, rolled_data)
                 else:
                     output[k] = f['tasks/{}'.format(k)]
+                    
             return output, ni
