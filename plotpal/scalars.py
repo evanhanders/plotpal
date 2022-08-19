@@ -142,7 +142,7 @@ class ScalarPlotter(SingleTypeReader):
                     if rdsets is not None:
                         self.trace_data['rolled_{}'.format(f)].append(rdsets[f][ri].squeeze())
                 
-                self.trace_data['sim_time'].append(dsets[f].dims[0]['sim_time'][ni])
+                self.trace_data['sim_time'].append(self.current_file_handle['scales']['sim_time'][ni])
 
             for f in self.fields: self.trace_data[f] = np.array(self.trace_data[f])
             self.trace_data['sim_time'] = np.array(self.trace_data['sim_time'])

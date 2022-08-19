@@ -159,17 +159,32 @@ class RolledProfilePlotter(SingleTypeReader):
                     axs.append(self.grid.axes[k])
         return axs
 
-    def add_line(self, basis, task, grid_num=None, ylim=(None, None), **kwargs):
-        if grid_num is None:
-            raise ValueError("Must specify an index grid_num >= 0")
+    def add_line(self, basis, task, grid_num, needed_tasks=None, ylim=(None, None), **kwargs):
+        """
+        Add a line to the plotter.
+
+        Parameters
+        ----------
+            basis : str
+                The name of the dedalus basis for the x-axis
+            task : str or python function
+                If str, must be the name of a profile
+                If function, must accept a matplotlib subplot axis (ax), a dictionary of datasets, as well as an integer for indexing
+            grid_num : int
+                Panel index for the plot
+            ylim (optional) : tuple of floats
+                Y-limits for the plot
+        """
         if 'color' not in kwargs and 'c' not in kwargs:
             kwargs['color'] = 'C' + str(self.color_ind)
             self.color_ind += 1
+        if type(task) != str and needed_tasks is None:
+            raise ValueError("must specify necessary tasks for your function.")
         if 'label' not in kwargs:
             kwargs['label'] = task
-        self.lines.append((grid_num, basis, task, ylim, kwargs))
+        self.lines.append((grid_num, basis, task, ylim, kwargs, needed_tasks))
 
-    def plot_lines(self, start_fig=1, dpi=200):
+    def plot_lines(self, start_fig=1, dpi=200, save_profiles=True):
 
         """
         Plot figures of the 2D dedalus data slices at each timestep.
@@ -179,6 +194,8 @@ class RolledProfilePlotter(SingleTypeReader):
                 The number in the filename for the first write.
             dpi (int) :
                 The pixel density of the output image
+            save_profiles (bool) :
+                If True, write an output file of all of the saved profiles.
         """
         with self.my_sync:
             if self.idle: return
@@ -187,19 +204,43 @@ class RolledProfilePlotter(SingleTypeReader):
             tasks = []
             for line_data in self.lines:
                 this_task = line_data[2]
-                if this_task not in tasks:
-                    tasks.append(this_task)
+                if type(this_task) == str:
+                    if this_task not in tasks:
+                        tasks.append(this_task)
+                else:
+                    needed_tasks = line_data[5]
+                    for task in needed_tasks:
+                        if task not in tasks:
+                            tasks.append(task)
+                   
+            saved_times = []
+            saved_writes = []
+            saved_profiles = OrderedDict()
+            saved_bases = OrderedDict()
+            for k in tasks:
+                saved_profiles[k] = []
             while self.writes_remain():
                 dsets, ni = self.get_dsets(tasks)
-                time_data = dsets[tasks[0]].dims[0]
+                time_data = self.current_file_handle['scales']
+                if save_profiles:
+                    saved_times.append(time_data['sim_time'][ni])
+                    saved_writes.append(time_data['write_number'][ni])
+                    for k in tasks:
+                        saved_profiles[k].append(dsets[k][ni])
 
                 for line_data in self.lines:
-                    ind, basis, task, ylim, kwargs = line_data
+                    ind, basis, task, ylim, kwargs, needed_tasks = line_data
                     ax = axs[ind]
-                    dset = dsets[task]
-                    x = match_basis(dset, basis)
-                    ax.plot(x, dset[ni].squeeze(), **kwargs)
-                    ax.set_ylim(*ylim)
+                    if type(task) == str:
+                        dset = dsets[task]
+                        x = match_basis(dset, basis)
+                        if basis not in saved_bases.keys():
+                            saved_bases[basis] = np.copy(x)
+                        ax.plot(x, dset[ni].squeeze(), **kwargs)
+                    else:
+                        task(ax, dsets, ni)
+                    if ylim[0] is not None or ylim[1] is not None:
+                        ax.set_ylim(*ylim)
                     ax.legend()
                     ax.set_xlabel(basis)
 
@@ -207,6 +248,54 @@ class RolledProfilePlotter(SingleTypeReader):
 
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
                 for ax in axs: ax.clear()
+            if save_profiles:
+                self._save_profiles(saved_bases, saved_profiles, saved_times, saved_writes)
+
+    def _save_profiles(self, bases, profiles, times, writes):
+        """
+        Saves post-processed, time-averaged profiles out to a file 
+
+        # Arguments
+            bases (OrderedDict) :
+                NumPy arrays of dedalus basis grid points
+            profiles (OrderedDict) :
+                Lists of time-averaged profiles
+            times (list) :
+                Lists of tuples of start and end times of averaging intervals
+        """
+        times = np.array(times)
+        writes = np.array(writes)
+        # get total number of writes
+        n_writes = np.zeros(1,)
+        min_write = np.zeros(1,)
+        n_writes[0] = writes.size
+        min_write[0] = writes.min()
+        self.comm.Allreduce(MPI.IN_PLACE, n_writes, op=MPI.SUM)
+        self.comm.Allreduce(MPI.IN_PLACE, min_write, op=MPI.MIN)
+        glob_writes = np.arange(n_writes) + min_write
+        glob_times  = np.zeros_like(glob_writes)
+        local_slice  = np.zeros_like(glob_writes, dtype=bool)
+        local_slice[(glob_writes >= writes.min())*(glob_writes <= writes.max())] = True
+        glob_times[local_slice] = times
+        self.comm.Allreduce(MPI.IN_PLACE, glob_times, op=MPI.SUM)
+
+        glob_profs = OrderedDict()
+        for k, p in profiles.items():
+            p = np.array(p)
+            glob_profs[k] = np.zeros((glob_times.size, *tuple(p.shape[1:])))
+            glob_profs[k][local_slice,:] = p
+            self.comm.Allreduce(MPI.IN_PLACE, glob_profs[k], op=MPI.SUM)
+
+        if self.comm.rank == 0:
+            print(glob_writes, glob_times, times)
+            with h5py.File('{:s}/post_{:s}.h5'.format(self.out_dir, self.out_name), 'w') as f:
+                for k, base in bases.items():
+                    f[k] = base
+                for k, p in glob_profs.items():
+                    print(p.squeeze()[:,0])
+                    f[k] = p.squeeze()
+                f['sim_time'] = glob_times
+                f['sim_writes'] = glob_writes
 
 
                             
