@@ -115,7 +115,8 @@ class Box:
 
     def __init__(self, left, right, top, left_mid=None , right_mid=None, top_mid=None, x_basis='x',\
      y_basis='y',z_basis='z', cmap='RdBu_r', pos_def=False, vmin=None, vmax=None, log=False,\
-     vector_ind=None, label=None, cmap_exclusion=0.005, azim=25, elev=10):
+     remove_mean=False, remove_x_mean=False, remove_y_mean=False,vector_ind=None, label=None, cmap_exclusion=0.005,\
+     azim=25, elev=10):
         
         self.first=True
         self.left=left
@@ -132,6 +133,9 @@ class Box:
         self.vmin = vmin
         self.vmax = vmax
         self.log=log
+        self.remove_mean=remove_mean
+        self.remove_x_mean=remove_x_mean
+        self.remove_y_mean=remove_y_mean
         self.vector_ind = vector_ind
         self.label = label
         self.cmap_exclusion = cmap_exclusion
@@ -146,7 +150,12 @@ class Box:
 
         if self.log: 
             field = np.log10(np.abs(field))
-
+        if self.remove_mean:
+            field -= np.mean(field)
+        elif self.remove_x_mean:
+            field -= np.mean(field, axis=0)
+        elif self.remove_y_mean:
+            field -= np.mean(field, axis=1)
         return field
 
     def _get_minmax(self, field):
@@ -199,15 +208,15 @@ class Box:
             self.Lx = x[-1] - x[0]
             self.Ly = y[-1] - y[0]
             self.Lz = z[-1] - z[0] 
-            self.x_mid = x[int(len(x)/2)]
-            self.y_mid = y[int(len(y)/2)]
-            self.z_mid = z[int(len(z)/2)]
             self.x_min = x.min()
             self.y_min = y.min()
             self.z_min = z.min()
             self.x_max = x.max()
             self.y_max = y.max()
             self.z_max = z.max()
+            self.x_mid = self.x_min + 0.5*(self.x_max - self.x_min)
+            self.y_mid = self.y_min + 0.5*(self.y_max - self.y_min)
+            self.z_mid = self.z_min + 0.5*(self.z_max - self.z_min)
 
         left_field = np.squeeze(dsets[self.left][ni,:])
         right_field = np.squeeze(dsets[self.right][ni,:])
@@ -261,15 +270,44 @@ class Box:
         side_list = [xy_side, xz_side, yz_side]
         if self.cutout:
             side_list = [xy_side, xz_side, yz_side, xy_mid, xz_mid, yz_mid]
+        x_max = -100
+        y_max = -100
+        z_max = -100
         for d in side_list:
             x = d['x']
             y = d['y']
             z = d['z']
             sfc = cmap(norm(d['surfacecolor']))
+            if x_max < np.nanmax(x):
+                x_max=np.nanmax(x)
+            if y_max < np.nanmax(y):
+                y_max=np.nanmax(y)
+            if z_max < np.nanmax(z):
+                z_max=np.nanmax(z)
             surf = ax.plot_surface(x, y, z, facecolors=sfc, cstride=1, rstride=1, linewidth=0, antialiased=False, shade=False)
             ax.plot_wireframe(x, y, z, ccount=1, rcount=1, linewidth=1, color='black')
         
+        x_b = np.array([[self.x_mid, self.x_mid], [self.x_mid,self.x_mid]])
+        y_b = np.array([[self.y_mid, y_max], [self.y_mid,y_max]])
+        z_b = np.array([[self.z_mid, self.z_mid], [z_max, z_max]])
+
+         # define the points for the second box
+        x_a = np.array([[self.x_mid, self.x_mid], [x_max, x_max]])
+        y_a = np.array([[self.y_mid, y_max], [self.y_mid,y_max]])
+        z_a = np.array([[self.z_mid, self.z_mid], [self.z_mid, self.z_mid]])
+
+        if self.cutout:
+            ax.plot_wireframe(x_a, y_a, z_a, ccount=1, rcount=1, linewidth=1, color='black')
+            ax.plot_wireframe(x_b, y_b, z_b, ccount=1, rcount=1, linewidth=1, color='black')
+        
         ax.view_init(self.azim, self.elev)
+        ax.set_box_aspect(aspect = (0.75,0.75,2))
+        ax.patch.set_facecolor('white')
+        ax.patch.set_alpha(0)
+        ax.set_axis_off()
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_zticks([])
         cb = self._setup_colorbar(cmap, cax, vmin, vmax)
         self.first = False
         return surf, cb
