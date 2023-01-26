@@ -255,11 +255,11 @@ class SingleTypeReader():
         self.out_dir  = '{:s}/{:s}/'.format(root_dir, out_name)
         if self.reader.global_comm.rank == 0 and not os.path.exists('{:s}'.format(self.out_dir)):
             os.mkdir('{:s}'.format(self.out_dir))
-        self.my_sync = Sync(self.reader.global_comm)
 
         self.files = self.reader.file_lists[file_dir]
         self.idle  = self.reader.idle[file_dir]
         self.comm  = self.reader.comms[file_dir]
+        self.my_sync = Sync(self.comm)
         self.starts = self.reader.file_starts[file_dir]
         self.counts = self.reader.file_counts[file_dir]
         self.writes = np.sum(self.counts)
