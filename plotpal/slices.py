@@ -94,6 +94,15 @@ class Colormesh:
             #Scale by magnitude of m = 0
             if self.divide_x_mean:
                 self.divided_mean = np.std(field, axis=0)
+                if type(self) == MeridionalColormesh or type(self) == PolarColormesh:
+                    if self.r_pad[0] == 0:
+                        #set interior 4% of points to have the same stdev.
+                        N = len(self.divided_mean) // 10
+                        mean_val = np.mean(self.divided_mean[:N])
+                        bound_val = self.divided_mean[N]
+                        indx = np.arange(N)
+                        smoother = mean_val + (bound_val - mean_val)*indx/N
+                        self.divided_mean[:N] = smoother
         field -= self.removed_mean
         field /= self.divided_mean
 
