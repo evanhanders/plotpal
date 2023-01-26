@@ -263,6 +263,7 @@ class SingleTypeReader():
         self.starts = self.reader.file_starts[file_dir]
         self.counts = self.reader.file_counts[file_dir]
         self.writes = np.sum(self.counts)
+        self.output = OrderedDict()
 
         if not self.idle:
             file_num = []
@@ -318,9 +319,8 @@ class SingleTypeReader():
                 print('gathering {} tasks; write {}/{} on process 0'.format(tasks, self.current_write+1, self.writes))
                 stdout.flush()
 
-            output = OrderedDict()
-            f = self.current_file_handle
-            ni = self.file_index[self.current_write]
+            self.output['f'] = f = self.current_file_handle
+            self.output['ni'] = ni = self.file_index[self.current_write]
             for k in tasks:
                 if isinstance(self.reader, RollingFileReader):
                     base_dset = f['tasks/{}'.format(k)]
@@ -335,7 +335,8 @@ class SingleTypeReader():
                                 rolled_data += np.sum(dset[local_indices], axis=0)
                                 rolled_counter += c
                     rolled_data /= rolled_counter
-                    output[k] = RolledDset(base_dset, ni, rolled_data)
+                    self.output[k] = RolledDset(base_dset, ni, rolled_data)
                 else:
-                    output[k] = f['tasks/{}'.format(k)]
-            return output, ni
+                    self.output[k] = f['tasks/{}'.format(k)]
+            print('finished output read')
+            return self.output, ni
