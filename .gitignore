@@ -1,0 +1,7 @@
+*.h5
+*.DS_Store
+*.png
+*.pyc
+*.mp4
+
+plotpal.egg-info
