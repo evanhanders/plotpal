@@ -5,7 +5,7 @@ Usage:
 
 Options:
     --data_dir=<dir>                    Name of data handler directory [default: snapshots]
-    --out_name=<out_name>               Name of figure output directory & base name of saved figures [default: boxes]
+    --out_name=<out_name>               Name of figure output directory & base name of saved figures [default: pyvista_boxes]
     --start_fig=<fig_start_num>         Number of first figure file [default: 1]
     --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
     --n_files=<num_files>               Total number of files to plot
@@ -37,7 +37,6 @@ plotter = PyVistaBoxPlotter(root_dir, file_dir=data_dir, out_name=out_name, star
 
 
 # Just plot a single plot (1x1 grid) of the field "b"
-plotter.setup_grid(num_rows=1, num_cols=2)
-plotter.add_box(left='Bx side',right='Bx front', top='Bx bottom', x_basis='x', y_basis='y',z_basis='z', vmin=-7, vmax=7, cmap_exclusion=0.05, cmap='viridis')
-plotter.add_cutout_box(left='Bx side',right='Bx front', top='Bx bottom', left_mid='By side', right_mid='By front', top_mid='By bottom', x_basis='x', y_basis='y',z_basis='z', vmin=-7, vmax=7, cmap_exclusion=0.05, cmap='inferno')
-plotter.plot_boxes(start_fig=start_fig, dpi=int(args['--dpi']))
+plotter.setup_grid(num_rows=1, num_cols=1, size=500)
+plotter.add_box(left='Bx side',right='Bx front', top='Bx top', x_basis='x', y_basis='y',z_basis='z', cmap_exclusion=0.05, cmap='viridis', label='Bx')
+plotter.plot_boxes()

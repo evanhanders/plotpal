@@ -85,3 +85,32 @@ class RegularPlotGrid(PlotGrid):
         self.make_subplots()
 
 RegularColorbarPlotGrid = lambda *a, **kw: RegularPlotGrid(*a, cbar=True, **kw)
+
+class PyVista3DPlotGrid:
+    """
+    A class for making a grid of 3D plots using PyVista
+    """
+
+    def __init__(self, num_rows=1, num_cols=1, size=500):
+        try:
+            import pyvista as pv
+        except ImportError:
+            raise ImportError("PyVista must be installed for 3D pyvista plotting in plotpal")
+
+        self.pl = pv.Plotter(off_screen=True, shape=(num_rows, num_cols))
+        self.num_rows     = num_rows    # number of rows in the grid
+        self.num_cols     = num_cols    # number of columns in the grid
+        self.size = size  # size of each subplot in pixels
+
+    def change_focus(self, row, col):
+        """ Focus on a particular plot in the grid; row and col are 0-indexed """
+        self.pl.subplot(row, col)
+    
+    def change_focus_single(self, index):
+        """ Focus on a particular plot in the grid; indexed from left to right, top to bottom """
+        row = index // self.num_cols
+        col = index % self.num_cols
+        self.change_focus(row, col)
+
+    def save(self, filename):
+        self.pl.screenshot(filename=filename, window_size=[self.num_cols*self.size, self.num_rows*self.size])

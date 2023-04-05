@@ -3,19 +3,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 matplotlib.rcParams.update({'font.size': 9})
 
-import os
-from sys import stdout
-from sys import path
 
-from dedalus.tools.parallel import Sync
 from collections import OrderedDict
 from plotpal.file_reader import SingleTypeReader, match_basis
-from plotpal.plot_grid import RegularColorbarPlotGrid
-#import plotly
-#import plotly.graph_objects as go
-#import plotly.io as pio
-#from plotly.subplots import make_subplots
-#from plotly.offline import plot_mpl, init_notebook_mode
+from plotpal.plot_grid import RegularColorbarPlotGrid, PyVista3DPlotGrid
 
 import numpy as np
 
@@ -138,6 +129,8 @@ class Box:
         self.remove_y_mean=remove_y_mean
         self.vector_ind = vector_ind
         self.label = label
+        if label is None:
+            self.label = 'field'
         self.cmap_exclusion = cmap_exclusion
         self.azim = azim
         self.elev=elev
@@ -196,7 +189,7 @@ class Box:
         return cb
      
 
-    def plot_colormesh(self, ax, cax, dsets, ni, **kwargs):
+    def plot_colormesh(self, dsets, ni, ax=None, cax=None, pl=None, engine='matplotlib', **kwargs):
         
         if self.first:
             x = match_basis(dsets[self.top], self.x_basis)
@@ -273,7 +266,9 @@ class Box:
         x_max = -100
         y_max = -100
         z_max = -100
-        for d in side_list:
+        if self.first:
+            self.pv_grids = []
+        for i, d in enumerate(side_list):
             x = d['x']
             y = d['y']
             z = d['z']
@@ -284,8 +279,26 @@ class Box:
                 y_max=np.nanmax(y)
             if z_max < np.nanmax(z):
                 z_max=np.nanmax(z)
-            surf = ax.plot_surface(x, y, z, facecolors=sfc, cstride=1, rstride=1, linewidth=0, antialiased=False, shade=False)
-            ax.plot_wireframe(x, y, z, ccount=1, rcount=1, linewidth=1, color='black')
+            if engine == 'matplotlib':
+                surf = ax.plot_surface(x, y, z, facecolors=sfc, cstride=1, rstride=1, linewidth=0, antialiased=False, shade=False)
+                ax.plot_wireframe(x, y, z, ccount=1, rcount=1, linewidth=1, color='black')
+            elif engine == 'pyvista':
+                if self.first:
+                    pl.set_background('white', all_renderers=False)
+                    if i == 0:
+                        try:
+                            import pyvista as pv
+                        except ImportError:
+                            raise ImportError("PyVista must be installed for 3D pyvista plotting in plotpal")
+                    self.pv_grids.append(pv.StructuredGrid(x, y, z))
+                    self.pv_grids[i][self.label] = np.array(d['surfacecolor'].flatten(order='F'))
+                    pl.add_mesh(self.pv_grids[i], scalars=self.label, cmap = self.cmap, clim = [vmin, vmax], scalar_bar_args={'color' : 'black'})
+                else:
+                    self.pv_grids[i][self.label] = np.array(d['surfacecolor'].flatten(order='F'))
+                    #pl.update_scalars(self.label, self.pv_grids[i], render=False)
+            else:
+                raise ValueError("engine must be 'matplotlib' or 'pyvista'")
+        
         
         x_b = np.array([[self.x_mid, self.x_mid], [self.x_mid,self.x_mid]])
         y_b = np.array([[self.y_mid, y_max], [self.y_mid,y_max]])
@@ -296,21 +309,35 @@ class Box:
         y_a = np.array([[self.y_mid, y_max], [self.y_mid,y_max]])
         z_a = np.array([[self.z_mid, self.z_mid], [self.z_mid, self.z_mid]])
 
-        if self.cutout:
-            ax.plot_wireframe(x_a, y_a, z_a, ccount=1, rcount=1, linewidth=1, color='black')
-            ax.plot_wireframe(x_b, y_b, z_b, ccount=1, rcount=1, linewidth=1, color='black')
-        
-        ax.view_init(self.azim, self.elev)
-        ax.set_box_aspect(aspect = (0.75,0.75,2))
-        ax.patch.set_facecolor('white')
-        ax.patch.set_alpha(0)
-        ax.set_axis_off()
-        ax.set_yticks([])
-        ax.set_xticks([])
-        ax.set_zticks([])
-        cb = self._setup_colorbar(cmap, cax, vmin, vmax)
-        self.first = False
-        return surf, cb
+        if engine == 'matplotlib':
+            if self.cutout:
+                ax.plot_wireframe(x_a, y_a, z_a, ccount=1, rcount=1, linewidth=1, color='black')
+                ax.plot_wireframe(x_b, y_b, z_b, ccount=1, rcount=1, linewidth=1, color='black')
+            
+            ax.view_init(self.azim, self.elev)
+            #ax.set_box_aspect(aspect = (0.75,0.75,2))
+            ax.patch.set_facecolor('white')
+            ax.patch.set_alpha(0)
+            ax.set_axis_off()
+            ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_zticks([])
+            cb = self._setup_colorbar(cmap, cax, vmin, vmax)
+            self.first = False
+            return surf, cb
+        elif engine == 'pyvista':
+            if self.first:
+                pl.camera.position = tuple(1.25*np.array(pl.camera.position))
+            if not self.first:
+                pl.update(force_redraw=True)
+                pl.update_scalar_bar_range([vmin, vmax], name=self.label)
+
+            self.first = False
+            return
+        else:
+            raise ValueError("engine must be 'matplotlib' or 'pyvista'")
+       
+
 
 
 class BoxPlotter(SingleTypeReader):
@@ -364,9 +391,6 @@ class BoxPlotter(SingleTypeReader):
                     axs.append(self.grid.axes[k])
                     caxs.append(self.grid.cbar_axes[k])
         return axs, caxs
-    
-    
-    
    
     def plot_boxes(self, start_fig=1, dpi=200, **kwargs):
         """
@@ -409,9 +433,71 @@ class BoxPlotter(SingleTypeReader):
                 for k, bx in self.boxes:
                     ax = axs[k]
                     cax = caxs[k]
-                    bx.plot_colormesh(ax, cax, dsets, ni, **kwargs)
+                    bx.plot_colormesh(dsets, ni, ax=ax, cax=cax, **kwargs)
 
                 plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
                
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
 
+class PyVistaBoxPlotter(BoxPlotter):
+    """
+    A class for plotting 3D boxes of dedalus data.
+    
+    Uses PyVista as a plotting engine rather than matplotlib.
+    # Public Methods
+    - __init__()
+    - setup_grid()
+    - add_colormesh()
+    - plot_colormeshes()
+    
+    # Attributes
+        colormeshes (list) :
+            A list of Colormesh objects
+    """
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+            
+    def setup_grid(self, **kwargs):
+        """ Initialize the plot grid  """
+        self.grid = PyVista3DPlotGrid(**kwargs)
+    
+    def add_box(self, *args, **kwargs):
+        super().add_box(*args, **kwargs)
+    
+    def add_cutout_box(self, *args, **kwargs):
+        super().add_cutout_box(*args, **kwargs)
+    
+    def plot_boxes(self, start_fig=1, **kwargs):
+        """
+        Plot 3D renderings of 2D dedalus data slices at each timestep.
+        """
+        with self.my_sync:
+            tasks = []
+            for k, bx in self.boxes:
+                if bx.left not in tasks:
+                    tasks.append(bx.left)
+                if bx.right not in tasks:
+                    tasks.append(bx.right)
+                if bx.top not in tasks:
+                    tasks.append(bx.top)
+                if bx.cutout:
+                    if bx.left_mid not in tasks:
+                        tasks.append(bx.left_mid)
+                    if bx.right_mid not in tasks:
+                        tasks.append(bx.right_mid)
+                    if bx.top_mid not in tasks:
+                        tasks.append(bx.top_mid)
+            if self.idle: return
+
+            while self.writes_remain():
+                dsets, ni = self.get_dsets(tasks)
+                time_data = self.current_file_handle['scales']
+
+                for k, bx in self.boxes:
+                    self.grid.change_focus_single(k)
+                    bx.plot_colormesh(dsets, ni, pl=self.grid.pl, engine='pyvista', **kwargs)
+
+                plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
+               
+                self.grid.save('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)))
