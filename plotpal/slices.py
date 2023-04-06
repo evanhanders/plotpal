@@ -145,18 +145,16 @@ class Colormesh:
         # Add and setup colorbar & label
         cb = plt.colorbar(plot, cax=cax, orientation='horizontal')
         cb.solids.set_rasterized(True)
-        cb.set_ticks((vmin, vmax))
-        cax.tick_params(direction='in', pad=1)
-        cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
-        cax.xaxis.set_ticks_position('bottom')
+        cb.set_ticks(())
+        cax.text(-0.01, 0.5, r'$_{{{:.2e}}}^{{{:.2e}}}$'.format(vmin, vmax), transform=cax.transAxes, ha='right', va='center')
         if  self.linked_cbar_cm is None:
             if self.label is None:
                 if self.vector_ind is not None:
-                    cax.text(0.5, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='center')
+                    cax.text(1.01, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='left')
                 else:
-                    cax.text(0.5, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='center')
+                    cax.text(1.01, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='left')
             else:
-                cax.text(0.5, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='center')
+                cax.text(1.01, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='left')
         return cb
 
     def plot_colormesh(self, ax, cax, dset, ni, **kwargs):

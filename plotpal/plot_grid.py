@@ -52,22 +52,23 @@ class PlotGrid:
         x_factor = 1/self.ncols
         y_factor = 1/self.nrows
 
+        x_offset = 0.5*x_factor*self.pad_factor/100
+        y_offset = 0
+
         for spec in self.specs:
             col_spot = spec['col_num']
             row_spot = self.nrows - spec['row_num'] - 1
-            x_anchor = col_spot*x_factor
-            y_anchor = row_spot*y_factor
+            x_anchor = col_spot*x_factor + x_offset
+            y_anchor = row_spot*y_factor + y_offset
             delta_x = spec['col_span']*x_factor * (1 - self.pad_factor/100)
             delta_y = spec['row_span']*y_factor * (1 - self.pad_factor/100)
-            x_end    = x_anchor + delta_x
-            y_end    = y_anchor + delta_y
 
             if spec['cbar']:
                 cbar_y_anchor = y_anchor + 0.9*delta_y
-                cbar_x_anchor = x_anchor + (0.25/2)*delta_x
+                cbar_x_anchor = x_anchor + 0.1*delta_x
                 cbar_delta_y = 0.1*delta_y
-                cbar_delta_x = 0.75*delta_x
-                delta_y *= 0.8
+                cbar_delta_x = 0.15*delta_x
+                delta_y *= 0.85
                 self.cbar_axes['ax_{}-{}'.format(spec['row_num'], spec['col_num'])] = self.fig.add_axes([cbar_x_anchor, cbar_y_anchor, cbar_delta_x, cbar_delta_y])
             self.axes['ax_{}-{}'.format(spec['row_num'], spec['col_num'])] = self.fig.add_axes([x_anchor, y_anchor, delta_x, delta_y], **spec['kwargs'])
 
