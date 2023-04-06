@@ -5,18 +5,49 @@ matplotlib.rcParams.update({'font.size': 9})
 
 
 from collections import OrderedDict
+from mpi4py import MPI
+import numpy as np
+
 from plotpal.file_reader import SingleTypeReader, match_basis
 from plotpal.plot_grid import RegularColorbarPlotGrid, PyVista3DPlotGrid
 
-import numpy as np
 
 import logging
 logger = logging.getLogger(__name__.split('.')[-1])
 
+def build_s2_vertices(phi, theta):
+    """ Logic for building coordinate singularity at the pole in a sphere """
+    phi = phi.ravel()
+    phi_vert = np.concatenate([phi, [2*np.pi]])
+    phi_vert -= phi_vert[1] / 2 
+    theta = theta.ravel()
+    theta_mid = (theta[:-1] + theta[1:]) / 2 
+    theta_vert = np.concatenate([[np.pi], theta_mid, [0]])
+    return phi_vert, theta_vert
+
+
+def build_spherical_vertices(phi, theta, r, Ri, Ro):
+    """ Logic for building 'full' spherical coordinates to avoid holes in volume plots """
+    phi_vert, theta_vert = build_s2_vertices(phi, theta)
+    r = r.ravel()
+    r_mid = (r[:-1] + r[1:]) / 2 
+    r_vert = np.concatenate([[Ri], r_mid, [Ro]])
+    return phi_vert, theta_vert, r_vert
+
+
+def spherical_to_cartesian(phi, theta, r, mesh=True):
+    """ Converts (phi, theta, r) -> (x, y, z) """
+    if mesh:
+        phi, theta, r = np.meshgrid(phi, theta, r, indexing='ij')
+    x = r * np.sin(theta) * np.cos(phi)
+    y = r * np.sin(theta) * np.sin(phi)
+    z = r * np.cos(theta)
+    return np.array([x, y, z]) 
+
 
 def construct_surface_dict(x_vals, y_vals, z_vals, data_vals, x_bounds=None, y_bounds=None, z_bounds=None, bool_function=np.logical_or):
     """
-    Takes grid coordinates and data on grid and prepares it for 3D surface plotting in plotly
+    Takes grid coordinates and data on grid and prepares it for Cartesian 3D surface plotting in plotly or PyVista
     
     Arguments:
     x_vals : NumPy array (1D) or float
@@ -336,7 +367,228 @@ class Box:
             return
         else:
             raise ValueError("engine must be 'matplotlib' or 'pyvista'")
-       
+        
+
+class CutSphere:
+    """
+    A struct containing information about a Spherical surface rendering in 3D.
+    """
+
+    def __init__(self, plotter, equator, left_meridian, right_meridian, outer_shell, view=0, r_basis='r', max_r = None, r_inner = 0,\
+     phi_basis='phi',theta_basis='theta', cmap='RdBu_r', pos_def=False, vmin=None, vmax=None, log=False,\
+     remove_mean=False, remove_radial_mean=False, divide_radial_stdev=False, vector_ind=None, label=None, cmap_exclusion=0.005):
+             
+        self.plotter = plotter
+        self.first = True
+        self.equator = equator 
+        self.left_meridian = left_meridian
+        self.right_meridian = right_meridian
+        self.outer_shell = outer_shell
+        self.view = view
+        self.r_inner = r_inner
+        self.max_r = max_r
+
+        self.r_basis = r_basis
+        self.phi_basis = phi_basis
+        self.theta_basis = theta_basis
+        self.cmap = cmap
+        self.pos_def = pos_def
+        self.vmin = vmin
+        self.vmax = vmax
+        self.log=log
+        self.remove_mean=remove_mean
+        self.remove_radial_mean = remove_radial_mean
+        self.divide_radial_stdev = divide_radial_stdev
+        self.vector_ind = vector_ind
+        self.label = label
+        if label is None:
+            self.label = 'field'
+        self.cmap_exclusion = cmap_exclusion
+        self.radial_mean = None # will be computed in the equator
+        self.radial_stdev = None # will be computed in the equator
+        if isinstance(self.equator, str):
+            self.equator = [self.equator,]
+            self.left_meridian = [self.left_meridian,]
+            self.right_meridian = [self.right_meridian,]
+        
+    def _modify_field(self, field):
+        if self.log: 
+            field = np.log10(np.abs(field))
+        if self.remove_mean:
+            field -= np.mean(field)
+        elif self.remove_radial_mean:
+            field -= self.radial_mean
+        elif self.divide_radial_stdev:
+            field /= self.radial_stdev
+        return field
+
+    def _get_minmax(self, field):
+        vals = np.sort(field.flatten())
+        if self.pos_def:
+            vals = np.sort(vals)
+            if np.mean(vals) < 0:
+                vmin, vmax = vals[int(self.cmap_exclusion*len(vals))], 0
+            else:
+                vmin, vmax = 0, vals[int((1-self.cmap_exclusion)*len(vals))]
+        else:
+            vals = np.sort(np.abs(vals))
+            vmax = vals[int((1-self.cmap_exclusion)*len(vals))]
+            vmin = -vmax
+
+        return vmin, vmax
+
+    def plot_colormesh(self, dsets, ni, pl, **kwargs):
+        
+        
+        if self.first:
+            #Pick out proper phi values of meridional slices from selected view
+            phi_vals = [0, np.pi/2, np.pi, 3*np.pi/2]
+            if self.view == 0:
+                phi_mer1 = phi_vals[2]
+            elif self.view == 1:
+                phi_mer1 = phi_vals[3]
+            elif self.view == 2:
+                phi_mer1 = phi_vals[0]
+            elif self.view == 3:
+                phi_mer1 = phi_vals[1]
+
+            #Read spherical coordiantes
+            r_arrs = []
+            for fd in self.right_meridian:
+                r_arrs.append(match_basis(dsets[fd], 'r'))
+            self.r = self.r_full = np.concatenate(r_arrs)
+            self.theta = match_basis(dsets[self.right_meridian[0]], 'theta')
+            self.phi = match_basis(dsets[self.equator[0]], 'phi')
+
+            #Limit domain range
+            if self.max_r is None:
+                self.r_outer = self.r.max()
+            else:
+                self.r_outer = self.max_r
+                self.r = self.r[self.r <= self.r_outer]
+
+            #Build cartesian coordinates
+            phi_vert, theta_vert, r_vert = build_spherical_vertices(self.phi, self.theta, self.r, self.r_inner, self.r_outer)
+            theta_mer = np.concatenate([-self.theta, self.theta[::-1]])
+            self.x_out, self.y_out, self.z_out = spherical_to_cartesian(phi_vert, theta_vert, [self.r_outer,])[:,:,:,0]
+            self.x_eq, self.y_eq, self.z_eq = spherical_to_cartesian(phi_vert, [np.pi/2,], r_vert)[:,:,0,:]
+            self.x_mer, self.y_mer, self.z_mer = spherical_to_cartesian([phi_mer1,], theta_mer, r_vert)[:,0,:,:]
+
+            mer_pick = self.z_mer >= 0
+            if self.view == 0:
+                shell_pick = np.logical_or(self.z_out <= 0, self.y_out <= 0)
+                eq_pick = self.y_eq >= 0
+            elif self.view == 1:
+                shell_pick = np.logical_or(self.z_out <= 0, self.x_out >= 0)
+                eq_pick = self.x_eq <= 0
+            elif self.view == 2:
+                shell_pick = np.logical_or(self.z_out <= 0, self.y_out >= 0)
+                eq_pick = self.y_eq <= 0
+            elif self.view == 3:
+                shell_pick = np.logical_or(self.z_out <= 0, self.x_out <= 0)
+                eq_pick = self.x_eq >= 0
+
+            self.out_data = OrderedDict()
+            self.mer_data = OrderedDict()
+            self.eq_data = OrderedDict()
+
+            self.out_data['pick'] = shell_pick
+            self.eq_data['pick'] = eq_pick
+            self.mer_data['pick'] = mer_pick
+            
+            self.out_data['x'], self.out_data['y'], self.out_data['z'] = self.x_out, self.y_out, self.z_out
+            self.eq_data['x'], self.eq_data['y'], self.eq_data['z'] = self.x_eq, self.y_eq, self.z_eq
+            self.mer_data['x'], self.mer_data['y'], self.mer_data['z'] = self.x_mer, self.y_mer, self.z_mer
+
+        camera_distance = self.r_outer*3
+        if self.view == 0:
+            pl.camera.position = np.array((1,1,1))*camera_distance
+        elif self.view == 1:
+            pl.camera.position = np.array((-1,1,1))*camera_distance
+        elif self.view == 2:
+            pl.camera.position = np.array((-1,-1,1))*camera_distance
+        elif self.view == 3:
+            pl.camera.position = np.array((1,-1,1))*camera_distance
+        
+        # Build radial mean and stdev & get equatorial field
+        eq_field = []
+        for fd in self.equator:
+            eq_field.append(dsets[fd][ni].squeeze())
+        eq_field = np.concatenate(eq_field, axis=-1)
+        self.radial_mean = np.expand_dims(np.mean(eq_field, axis = 0), axis = 0)
+        self.radial_stdev = np.expand_dims(np.std(eq_field, axis = 0), axis = 0)
+
+        # Modify the inner 5% of stdev so that:
+        # at r = 0 it is the mean stdev over that range.
+        # at r = 5% of r it smoothly transitions to stdev at r = 5% of r
+        num_r = self.radial_stdev.size
+        mean_interior = np.mean(self.radial_stdev[0, :int(num_r*0.05)])
+        mean_boundary = self.radial_stdev[0, int(num_r*0.05)]
+        self.radial_stdev[0, :int(num_r*0.05)] = np.linspace(mean_interior, mean_boundary, int(num_r*0.05))
+        eq_field = self._modify_field(eq_field)
+        self.eq_data['field'] = np.pad(eq_field.squeeze()[:, self.r_full <= self.r_outer], ((1,0), (1,0)), mode = 'edge')
+
+        # Build meridian field
+        mer_left_field = []
+        mer_right_field = []
+        for left, right in zip(self.left_meridian, self.right_meridian):
+            mer_left_field.append(dsets[left][ni].squeeze())
+            mer_right_field.append(dsets[right][ni].squeeze())
+        mer_left_field = np.concatenate(mer_left_field, axis=-1)
+        mer_right_field = np.concatenate(mer_right_field, axis=-1)
+        mer_left_field = self._modify_field(mer_left_field)
+        mer_right_field = self._modify_field(mer_right_field)
+        mer_left_field = mer_left_field.squeeze()[:, self.r_full <= self.r_outer]
+        mer_right_field = mer_right_field.squeeze()[:, self.r_full <= self.r_outer]
+        mer_field = np.concatenate( (mer_left_field, mer_right_field[::-1,:]), axis = 0)
+        self.mer_data['field'] = np.pad(mer_field, ((0,0), (0,1)), mode = 'edge')
+
+        # Builder outer shell field
+        shell_field = dsets[self.outer_shell][ni].squeeze()
+        if self.remove_radial_mean:
+            shell_field -= self.radial_mean.ravel()[-1]
+        if self.divide_radial_stdev:
+            shell_field /= self.radial_stdev.ravel()[-1]
+        self.out_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
+
+        # Get min and max values for colorbar
+        if self.first:
+            self.vmin, self.vmax = self._get_minmax(self.eq_data['field'])
+            self.vmin = np.array([self.vmin])
+            self.vmax = np.array([self.vmax])
+        else:
+            self.vmin[0], self.vmax[0] = self._get_minmax(self.eq_data['field'])
+        self.plotter.comm.Allreduce(MPI.IN_PLACE, self.vmin, op=MPI.MIN)
+        self.plotter.comm.Allreduce(MPI.IN_PLACE, self.vmax, op=MPI.MAX)
+        cmap = matplotlib.cm.get_cmap(self.cmap)
+        self.data_dicts = [self.out_data, self.mer_data, self.eq_data]
+
+        pl.set_background('white', all_renderers=False)
+        for i, d in enumerate(self.data_dicts):
+            if self.first:
+                x = d['x']
+                y = d['y']
+                z = d['z']
+                if i == 0:
+                    try:
+                        import pyvista as pv
+                    except ImportError:
+                        raise ImportError("PyVista must be installed for 3D pyvista plotting in plotpal")
+                grid = pv.StructuredGrid(x, y, z)
+                grid[self.label] = d['field'].flatten(order='F')
+                grid['mask'] = np.array(d['pick'], int).flatten(order='F')
+                clipped = grid.clip_scalar('mask', invert=False, value=0.5)
+                d['grid'] = grid
+                d['clip'] = clipped
+                pl.add_mesh(d['clip'], scalars=self.label, cmap=cmap, clim=[self.vmin, self.vmax], opacity=1.0, show_scalar_bar=True, scalar_bar_args={'color' : 'black'})
+            else:
+                d['grid'][self.label] = d['field'].ravel(order='F')
+                d['clip'][self.label] = d['grid'].clip_scalar('mask', invert=False, value=0.5)[self.label]
+        
+        if not self.first:
+            pl.update(force_redraw=True)
+            pl.update_scalar_bar_range([self.vmin[0], self.vmax[0]], name=self.label)
+        self.first = False
 
 
 
@@ -498,6 +750,44 @@ class PyVistaBoxPlotter(BoxPlotter):
                     self.grid.change_focus_single(k)
                     bx.plot_colormesh(dsets, ni, pl=self.grid.pl, engine='pyvista', **kwargs)
 
-                plt.suptitle('t = {:.4e}'.format(time_data['sim_time'][ni]))
+                
+                titleactor = self.grid.pl.add_title('t={:.4e}'.format(time_data['sim_time'][ni]), color='black')
                
+                self.grid.save('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)))
+
+class PyVistaSpherePlotter(PyVistaBoxPlotter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.spheres = []
+            
+    def setup_grid(self, **kwargs):
+        """ Initialize the plot grid  """
+        self.grid = PyVista3DPlotGrid(**kwargs)
+    
+    def add_sphere(self, *args, **kwargs):
+        self.spheres.append((self.counter, CutSphere(self, *args, **kwargs)))
+        self.counter += 1
+
+    def plot_spheres(self, start_fig=1, **kwargs):
+        """
+        Plot 3D renderings of 2D dedalus data slices at each timestep.
+        """
+        with self.my_sync:
+            tasks = []
+            for k, sp in self.spheres:
+                for task in sp.equator + sp.left_meridian + sp.right_meridian + [sp.outer_shell,]:
+                    if task not in tasks:
+                        tasks.append(task)
+            if self.idle: return
+
+            while self.writes_remain():
+                dsets, ni = self.get_dsets(tasks)
+                time_data = self.current_file_handle['scales']
+
+                for k, sp in self.spheres:
+                    self.grid.change_focus_single(k)
+                    sp.plot_colormesh(dsets, ni, pl=self.grid.pl, **kwargs)
+                
+                titleactor = self.grid.pl.add_title('t={:.4e}'.format(time_data['sim_time'][ni]), color='black', font_size=self.grid.size*0.02)
+
                 self.grid.save('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)))
