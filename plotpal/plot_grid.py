@@ -64,11 +64,18 @@ class PlotGrid:
             delta_y = spec['row_span']*y_factor * (1 - self.pad_factor/100)
 
             if spec['cbar']:
-                cbar_y_anchor = y_anchor + 0.9*delta_y
-                cbar_x_anchor = x_anchor + 0.1*delta_x
-                cbar_delta_y = 0.1*delta_y
-                cbar_delta_x = 0.15*delta_x
-                delta_y *= 0.85
+                if spec['kwargs']['polar']:
+                    cbar_y_anchor = y_anchor + 0.95*delta_y
+                    cbar_x_anchor = x_anchor + 0.1*delta_x
+                    cbar_delta_y = 0.05*delta_y
+                    cbar_delta_x = 0.15*delta_x
+                    delta_y *= 0.95
+                else:
+                    cbar_y_anchor = y_anchor + 0.9*delta_y
+                    cbar_x_anchor = x_anchor + 0.1*delta_x
+                    cbar_delta_y = 0.1*delta_y
+                    cbar_delta_x = 0.15*delta_x
+                    delta_y *= 0.85
                 self.cbar_axes['ax_{}-{}'.format(spec['row_num'], spec['col_num'])] = self.fig.add_axes([cbar_x_anchor, cbar_y_anchor, cbar_delta_x, cbar_delta_y])
             self.axes['ax_{}-{}'.format(spec['row_num'], spec['col_num'])] = self.fig.add_axes([x_anchor, y_anchor, delta_x, delta_y], **spec['kwargs'])
 

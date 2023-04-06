@@ -150,11 +150,11 @@ class Colormesh:
         if  self.linked_cbar_cm is None:
             if self.label is None:
                 if self.vector_ind is not None:
-                    cax.text(1.01, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='left')
+                    cax.text(1.05, 0.5, '{:s}[{}]'.format(self.task, self.vector_ind), transform=cax.transAxes, va='center', ha='left')
                 else:
-                    cax.text(1.01, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='left')
+                    cax.text(1.05, 0.5, '{:s}'.format(self.task), transform=cax.transAxes, va='center', ha='left')
             else:
-                cax.text(1.01, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='left')
+                cax.text(1.05, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='left')
         return cb
 
     def plot_colormesh(self, ax, cax, dset, ni, **kwargs):
@@ -362,9 +362,7 @@ class SlicePlotter(SingleTypeReader):
 
     def add_meridional_colormesh(self, left=None, right=None, **kwargs):
         if left is not None and right is not None:
-            these_kwargs = kwargs.copy()
-            these_kwargs['label'] = ''
-            self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **these_kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **kwargs)))
             self.colormeshes.append((self.counter, MeridionalColormesh(right, linked_cbar_cm=self.colormeshes[-1][1], **kwargs)))
         self.counter += 1
 
