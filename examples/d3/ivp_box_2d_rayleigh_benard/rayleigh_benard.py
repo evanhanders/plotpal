@@ -25,7 +25,9 @@ To run and plot using e.g. 4 processes and plotpal scripts:
     $ mpiexec -n 4 python3 rayleigh_benard.py
     $ mpiexec -n 4 python3 plot_all_slices.py  # plots b, p, ux, uz
     $ mpiexec -n 4 python3 plot_b_slices.py    # plots b
-    
+    $ mpiexec -n 1 python3 plot_scalar_traces.py # plots traces of Nu and Re vs time
+    $ mpiexec -n 4 python3 plot_rolled_profiles.py # plots profiles of b and fluxes vs z at each output time, rolled in time.
+    $ mpiexec -n 4 python3 plot_instantaneous_profiles.py # plots profiles of b and fluxes vs z at each output time.
 """
 
 import numpy as np

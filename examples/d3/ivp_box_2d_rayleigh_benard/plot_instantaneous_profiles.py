@@ -1,16 +1,15 @@
 """
-This script plots the average temperature structure of the simulation, averaged over a specified number of writes.
+This script plots the horizontally-averaged temperature structure & energy fluxes of the simulation.
 
 Usage:
-    plot_rolled_profiles.py [options]
+    plot_instantaneous_profiles.py [options]
 
 Options:
     --root_dir=<str>        Path to root directory containing data_dir [default: .]
     --data_dir=<str>        Name of data handler directory [default: profiles]
-    --subdir_name=<str>     Name of figure output directory & base name of saved figures [default: rolled_profiles]
+    --subdir_name=<str>     Name of figure output directory & base name of saved figures [default: instantaneous_profiles]
     --start_file=<int>      Number of Dedalus output file to start plotting at [default: 1]
     --n_files=<int>         Total number of files to plot
-    --roll_writes=<int>     Number of writes over which to take average [default: 50]
     --dpi=<int>             Image pixel density [default: 200]
 
     --col_inch=<float>     Figure width (inches) [default: 3]
@@ -29,10 +28,9 @@ n_files     = args['--n_files']
 if n_files is not None: 
     n_files = int(n_files)
 
-roll_writes = int(args['--roll_writes']) #rolling uses this many writes before AND after the current write, so 2x this many total.
 
 # Create Plotter object, tell it which fields to plot
-plotter = RolledProfilePlotter(root_dir, file_dir=data_dir, out_name=subdir_name, roll_writes=roll_writes, start_file=start_file, n_files=n_files)
+plotter = RolledProfilePlotter(root_dir, file_dir=data_dir, out_name=subdir_name, start_file=start_file, n_files=n_files)
 plotter.setup_grid(num_rows=2, num_cols=1, col_inch=float(args['--col_inch']), row_inch=float(args['--row_inch']), pad_factor=15)
 plotter.add_line('z', 'b', grid_num=0)
 plotter.add_line('z', 'cond_flux', grid_num=1)
