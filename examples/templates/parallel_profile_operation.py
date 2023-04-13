@@ -6,10 +6,10 @@ which are then properly sorted and saved.
 Be sure to fill in or note all of the TODO's.
 
 To see how it works, run the (d3) rayleigh_benard.py example, then type:
-    mpirun -n 4 python3 uniform_output_task.py
+    mpirun -n 4 python3 parallel_profile_operation.py
 
 Usage:
-    uniform_output_task.py [options]
+    parallel_profile_operation.py [options]
 
 Options:
     --root_dir=<str>         Path to root directory containing data_dir [default: .]

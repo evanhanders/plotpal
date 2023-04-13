@@ -29,10 +29,6 @@ from plotpal.file_reader import SingleTypeReader, match_basis
 # Read in master output directory
 root_dir    = args['--root_dir']
 data_dir    = args['--data_dir'] #TODO: change default in docstring above to apply to your own simulation.
-if root_dir is None:
-    print('No dedalus output dir specified, exiting')
-    import sys
-    sys.exit()
 
 # Read in additional plot arguments
 start_fig   = int(args['--start_fig'])
