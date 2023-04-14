@@ -15,13 +15,13 @@ matplotlib.rcParams.update({'font.size': 9})
 
 from dedalus.tools.parallel import Sync
 
-from plotpal.file_reader import SingleFiletypePlotter
-from plotpal.plot_grid import PlotGrid
+from plotpal.file_reader import SingleTypeReader, match_basis
+from plotpal.plot_grid import RegularPlotGrid
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
 
-class PdfPlotter(SingleFiletypePlotter):
+class PdfPlotter(SingleTypeReader):
     """
     A class for plotting probability distributions of a dedalus output.
 
@@ -48,7 +48,7 @@ class PdfPlotter(SingleFiletypePlotter):
         # Arguments
             *args, **kwargs : Additional keyword arguments for super().__init__()  (see file_reader.py)
         """
-        super(PdfPlotter, self).__init__(*args, distribution='even', **kwargs)
+        super(PdfPlotter, self).__init__(*args, distribution='even-write', **kwargs)
         self.pdfs = OrderedDict()
         self.pdf_stats = OrderedDict()
 
@@ -65,7 +65,7 @@ class PdfPlotter(SingleFiletypePlotter):
             self.pdf_stats[k] = (mean, stdev, skew, kurt)
 
     
-    def _get_interpolated_slices(self, uneven_basis=None):
+    def _get_interpolated_slices(self, dsets, ni, uneven_basis=None):
         """
         For 2D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
@@ -75,10 +75,9 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         #Read data
         bases = self.current_bases
-        bs, tsk, writenum, times = self.read_next_file()
 
         # Put data on an even grid
-        x, y = bs[bases[0]], bs[bases[1]]
+        x, y = [match_basis(dsets[next(iter(dsets))], bn) for bn in bases]
         if bases[0] == uneven_basis:
             even_x = np.linspace(x.min(), x.max(), len(x))
             even_y = y
@@ -90,18 +89,14 @@ class PdfPlotter(SingleFiletypePlotter):
         eyy, exx = np.meshgrid(even_y, even_x)
 
         file_data = OrderedDict()
-        for k in tsk.keys(): 
-            file_data[k] = np.zeros(tsk[k].shape)
-            for i in range(file_data[k].shape[0]):
-                if self.reader.comm.rank == 0:
-                    print('interpolating {} ({}/{})...'.format(k, i+1, file_data[k].shape[0]))
-                    stdout.flush()
-                interp = RegularGridInterpolator((x.flatten(), y.flatten()), tsk[k][i,:], method='linear')
-                file_data[k][i,:] = interp((exx, eyy))
+        for k in dsets.keys(): 
+            file_data[k] = np.zeros(dsets[k][ni].shape)
+            interp = RegularGridInterpolator((x.flatten(), y.flatten()), dsets[k][ni], method='linear')
+            file_data[k][:,:] = interp((exx, eyy))
 
         return file_data
 
-    def _get_interpolated_volumes(self, uneven_basis=None):
+    def _get_interpolated_volumes(self, dsets, ni, uneven_basis=None):
         """
         For 3D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
@@ -111,11 +106,9 @@ class PdfPlotter(SingleFiletypePlotter):
         """
         #Read data
         bases = self.current_bases
-        bs, tsk, writenum, times = self.read_next_file()
 
         # Put data on an even grid
-        x, y, z = bs[bases[0]], bs[bases[1]], bs[bases[2]]
-        dedalus_bases = (x, y, z)
+        x, y, z = [match_basis(dsets[next(iter(dsets))], bn) for bn in bases]
         uneven_index  = None
         if bases[0] == uneven_basis:
             even_x = np.linspace(x.min(), x.max(), len(x))
@@ -144,14 +137,16 @@ class PdfPlotter(SingleFiletypePlotter):
             ezz, exx = np.meshgrid(even_z, even_x)
 
         file_data = OrderedDict()
-        for k in tsk.keys(): 
-            file_data[k] = np.zeros(tsk[k].shape)
+
+        #TODO: Double-check logic here -- this is years old.
+        for k in dsets.keys(): 
+            file_data[k] = np.zeros(dsets[k][ni].shape)
             for i in range(file_data[k].shape[0]):
-                if self.reader.comm.rank == 0:
+                if self.comm.rank == 0:
                     print('interpolating {} ({}/{})...'.format(k, i+1, file_data[k].shape[0]))
                     stdout.flush()
                 if uneven_index is None:
-                    file_data[k][i,:] = tsk[k][i,:]
+                    file_data[k][i,:] = tdsets[k][ni][i,:]
                 elif uneven_index == 2:
                     for j in range(file_data[k].shape[-2]): # loop over y
                         interp = RegularGridInterpolator((x.flatten(), z.flatten()), tsk[k][i,:,j,:], method='linear')
@@ -178,18 +173,18 @@ class PdfPlotter(SingleFiletypePlotter):
                 bounds[field] = np.zeros(2)
                 bounds[field][:] = np.nan
 
-            while self.files_remain([], pdf_list):
-                bs, tsk, writenum, times = self.read_next_file()
+            while self.writes_remain():
+                dsets, ni = self.get_dsets(pdf_list)
                 for field in pdf_list:
                     if np.isnan(bounds[field][0]):
-                        bounds[field][0], bounds[field][1] = tsk[field].min(), tsk[field].max()
+                        bounds[field][0], bounds[field][1] = dsets[field][ni].min(), dsets[field][ni].max()
 
             for field in pdf_list:
                 buff     = np.zeros(1)
-                self.dist_comm.Allreduce(bounds[field][0], buff, op=MPI.MIN)
+                self.comm.Allreduce(bounds[field][0], buff, op=MPI.MIN)
                 bounds[field][0] = buff
 
-                self.dist_comm.Allreduce(bounds[field][1], buff, op=MPI.MAX)
+                self.comm.Allreduce(bounds[field][1], buff, op=MPI.MAX)
                 bounds[field][1] = buff
 
             return bounds
@@ -211,6 +206,7 @@ class PdfPlotter(SingleFiletypePlotter):
                 Should have 2 elements if threeD is false, 3 elements if threeD is true.
             **kwargs : additional keyword arguments for the self._get_interpolated_slices() function.
         """
+        self.current_bases = bases
         bounds = self._get_bounds(pdf_list)
 
         histograms = OrderedDict()
@@ -222,11 +218,12 @@ class PdfPlotter(SingleFiletypePlotter):
         with self.my_sync:
             if self.idle : return
 
-            while self.files_remain(bases, pdf_list):
+            while self.writes_remain():
+                dsets, ni = self.get_dsets(pdf_list)
                 if threeD:
-                    file_data = self._get_interpolated_volumes(**kwargs)
+                    file_data = self._get_interpolated_volumes(dsets, ni, **kwargs)
                 else:
-                    file_data = self._get_interpolated_slices(**kwargs)
+                    file_data = self._get_interpolated_slices(dsets, ni, **kwargs)
 
                 # Create histograms of data
                 for field in pdf_list:
@@ -238,7 +235,7 @@ class PdfPlotter(SingleFiletypePlotter):
             for field in pdf_list:
                 loc_hist    = np.array(histograms[field], dtype=np.float64)
                 global_hist = np.zeros_like(loc_hist, dtype=np.float64)
-                self.dist_comm.Allreduce(loc_hist, global_hist, op=MPI.SUM)
+                self.comm.Allreduce(loc_hist, global_hist, op=MPI.SUM)
 
                 dx = bin_edges[field][1]-bin_edges[field][0]
                 x_vals  = bin_edges[field][:-1] + dx/2
@@ -258,9 +255,9 @@ class PdfPlotter(SingleFiletypePlotter):
             **kwargs : additional keyword arguments for PlotGrid()
         """
         with self.my_sync:
-            if self.reader.comm.rank != 0: return
+            if self.comm.rank != 0: return
 
-            grid = PlotGrid(1,1, **kwargs)
+            grid = RegularPlotGrid(num_rows=1,num_cols=1, **kwargs)
             ax = grid.axes['ax_0-0']
             
             for k, data in self.pdfs.items():
@@ -291,7 +288,7 @@ class PdfPlotter(SingleFiletypePlotter):
             pdf - the (normalized) y-values of the PDF
             dx  - the spacing between x values, for use in integrals.
         """
-        if self.reader.comm.rank == 0:
+        if self.comm.rank == 0:
             with h5py.File('{:s}/pdf_data.h5'.format(self.out_dir), 'w') as f:
                 for k, data in self.pdfs.items():
                     pdf, xs, dx = data

@@ -319,8 +319,10 @@ class SingleTypeReader():
                 print('gathering {} tasks; write {}/{} on process 0'.format(tasks, self.current_write+1, self.writes))
                 stdout.flush()
 
-            self.output['f'] = f = self.current_file_handle
-            self.output['ni'] = ni = self.file_index[self.current_write]
+    #        self.output['f'] = f = self.current_file_handle
+    #        self.output['ni'] = ni = self.file_index[self.current_write]
+            f = self.current_file_handle    
+            ni = self.file_index[self.current_write]
             for k in tasks:
                 if isinstance(self.reader, RollingFileReader):
                     base_dset = f['tasks/{}'.format(k)]
