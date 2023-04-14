@@ -7,6 +7,7 @@ matplotlib.rcParams.update({'font.size': 9})
 from collections import OrderedDict
 from mpi4py import MPI
 import numpy as np
+from scipy.interpolate import interp1d
 
 from plotpal.file_reader import SingleTypeReader, match_basis
 from plotpal.plot_grid import RegularColorbarPlotGrid, PyVista3DPlotGrid
@@ -418,7 +419,7 @@ class CutSphere:
             field -= np.mean(field)
         elif self.remove_radial_mean:
             field -= self.radial_mean
-        elif self.divide_radial_stdev:
+        if self.divide_radial_stdev:
             field /= self.radial_stdev
         return field
 
@@ -459,6 +460,8 @@ class CutSphere:
             self.r = self.r_full = np.concatenate(r_arrs)
             self.theta = match_basis(dsets[self.right_meridian[0]], 'theta')
             self.phi = match_basis(dsets[self.equator[0]], 'phi')
+            self.shell_theta = match_basis(dsets[self.outer_shell], 'theta')
+            self.shell_phi = match_basis(dsets[self.outer_shell], 'phi')
 
             #Limit domain range
             if self.max_r is None:
@@ -469,8 +472,9 @@ class CutSphere:
 
             #Build cartesian coordinates
             phi_vert, theta_vert, r_vert = build_spherical_vertices(self.phi, self.theta, self.r, self.r_inner, self.r_outer)
+            phi_vert_out, theta_vert_out, r_vert_out = build_spherical_vertices(self.shell_phi, self.shell_theta, self.r, self.r_inner, self.r_outer)
             theta_mer = np.concatenate([-self.theta, self.theta[::-1]])
-            self.x_out, self.y_out, self.z_out = spherical_to_cartesian(phi_vert, theta_vert, [self.r_outer,])[:,:,:,0]
+            self.x_out, self.y_out, self.z_out = spherical_to_cartesian(phi_vert_out, theta_vert_out, [self.r_outer,])[:,:,:,0]
             self.x_eq, self.y_eq, self.z_eq = spherical_to_cartesian(phi_vert, [np.pi/2,], r_vert)[:,:,0,:]
             self.x_mer, self.y_mer, self.z_mer = spherical_to_cartesian([phi_mer1,], theta_mer, r_vert)[:,0,:,:]
 
@@ -517,14 +521,19 @@ class CutSphere:
         eq_field = np.concatenate(eq_field, axis=-1)
         self.radial_mean = np.expand_dims(np.mean(eq_field, axis = 0), axis = 0)
         self.radial_stdev = np.expand_dims(np.std(eq_field, axis = 0), axis = 0)
+        self.radial_mean_func = interp1d(self.r_full, self.radial_mean.squeeze(), kind='linear', bounds_error=False, fill_value='extrapolate')
+        self.radial_stdev_func = interp1d(self.r_full, self.radial_stdev.squeeze(), kind='linear', bounds_error=False, fill_value='extrapolate')
 
-        # Modify the inner 5% of stdev so that:
+        # Modify the stdev inner 5% of radial points so that:
         # at r = 0 it is the mean stdev over that range.
         # at r = 5% of r it smoothly transitions to stdev at r = 5% of r
         num_r = self.radial_stdev.size
         mean_interior = np.mean(self.radial_stdev[0, :int(num_r*0.05)])
         mean_boundary = self.radial_stdev[0, int(num_r*0.05)]
+
+        print(self.radial_stdev)
         self.radial_stdev[0, :int(num_r*0.05)] = np.linspace(mean_interior, mean_boundary, int(num_r*0.05))
+        print(self.radial_stdev)
         eq_field = self._modify_field(eq_field)
         self.eq_data['field'] = np.pad(eq_field.squeeze()[:, self.r_full <= self.r_outer], ((1,0), (1,0)), mode = 'edge')
 
@@ -546,9 +555,9 @@ class CutSphere:
         # Builder outer shell field
         shell_field = dsets[self.outer_shell][ni].squeeze()
         if self.remove_radial_mean:
-            shell_field -= self.radial_mean.ravel()[-1]
+            shell_field -= self.radial_mean_func(self.r_outer)
         if self.divide_radial_stdev:
-            shell_field /= self.radial_stdev.ravel()[-1]
+            shell_field /= self.radial_stdev_func(self.r_outer)
         self.out_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
 
         # Get min and max values for colorbar
@@ -565,6 +574,10 @@ class CutSphere:
 
         pl.set_background('white', all_renderers=False)
         for i, d in enumerate(self.data_dicts):
+            if i == 0: 
+                label = self.label
+            else:
+                label = self.label +'{}'.format(i)
             if self.first:
                 x = d['x']
                 y = d['y']
@@ -575,15 +588,19 @@ class CutSphere:
                     except ImportError:
                         raise ImportError("PyVista must be installed for 3D pyvista plotting in plotpal")
                 grid = pv.StructuredGrid(x, y, z)
-                grid[self.label] = d['field'].flatten(order='F')
+                grid[label] = d['field'].flatten(order='F')
                 grid['mask'] = np.array(d['pick'], int).flatten(order='F')
                 clipped = grid.clip_scalar('mask', invert=False, value=0.5)
                 d['grid'] = grid
                 d['clip'] = clipped
-                pl.add_mesh(d['clip'], scalars=self.label, cmap=cmap, clim=[self.vmin, self.vmax], opacity=1.0, show_scalar_bar=True, scalar_bar_args={'color' : 'black'})
+                if i == 0:
+                    d['mesh'] = pl.add_mesh(d['clip'], scalars=label, cmap=cmap, clim=[self.vmin, self.vmax], opacity=1.0, show_scalar_bar=True, scalar_bar_args={'color' : 'black'})
+                else:
+                    d['mesh'] = pl.add_mesh(d['clip'], scalars=label, cmap=cmap, clim=[self.vmin, self.vmax], opacity=1.0, show_scalar_bar=False)
             else:
-                d['grid'][self.label] = d['field'].ravel(order='F')
-                d['clip'][self.label] = d['grid'].clip_scalar('mask', invert=False, value=0.5)[self.label]
+                d['grid'][label] = d['field'].ravel(order='F')
+                d['clip'][label] = d['grid'].clip_scalar('mask', invert=False, value=0.5)[label]
+                d['mesh'].mapper.scalar_range = (self.vmin[0], self.vmax[0])
         
         if not self.first:
             pl.update(force_redraw=True)
@@ -788,6 +805,7 @@ class PyVistaSpherePlotter(PyVistaBoxPlotter):
                     self.grid.change_focus_single(k)
                     sp.plot_colormesh(dsets, ni, pl=self.grid.pl, **kwargs)
                 
+                self.grid.change_focus_single(0)
                 titleactor = self.grid.pl.add_title('t={:.4e}'.format(time_data['sim_time'][ni]), color='black', font_size=self.grid.size*0.02)
 
                 self.grid.save('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)))

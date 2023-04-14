@@ -1,38 +1,6 @@
 """
-This example file was taken from https://github.com/DedalusProject/dedalus.
+This example file is based on the d3 internally-heated convection example script.
 A stable layer was added, and a ball and shell basis were coupled together.
-
-Dedalus script simulating internally-heated Boussinesq convection in the ball.
-This script demonstrates soving an initial value problem in the ball. It can be
-ran serially or in parallel, and uses the built-in analysis framework to save
-data snapshots to HDF5 files. The `plot_equator.py` and `plot_meridian.py` scripts
-can be used to produce plots from the saved data. The simulation should take
-roughly 1 cpu-hour to run.
-
-The strength of gravity is proportional to radius, as for a constant density ball.
-The problem is non-dimensionalized using the ball radius and freefall time, so
-the resulting thermal diffusivity and viscosity are related to the Prandtl
-and Rayleigh numbers as:
-
-    kappa = (Rayleigh * Prandtl)**(-1/2)
-    nu = (Rayleigh / Prandtl)**(-1/2)
-
-We use stress-free boundary conditions, and maintain the temperature on the outer
-boundary equal to 0. The convection is driven by the internal heating term with
-a conductive equilibrium of T(r) = 1 - r**2.
-
-For incompressible hydro in the ball, we need one tau terms for each the velocity
-and temperature. Here we choose to lift them to the natural output (k=2) basis.
-
-The simulation will run to t=10, about the time for the first convective plumes
-to hit the top boundary. After running this initial simulation, you can restart
-the simulation with the command line option '--restart'.
-
-To run, restart, and plot using e.g. 4 processes:
-    $ mpiexec -n 4 python3 internally_heated_convection.py
-    $ mpiexec -n 4 python3 internally_heated_convection.py --restart
-    $ mpiexec -n 4 python3 plot_equator.py slices/*.h5
-    $ mpiexec -n 4 python3 plot_meridian.py slices/*.h5
 """
 
 import sys
@@ -123,9 +91,9 @@ trans = d3.TransposeComponents
 grid = d3.Grid
 
 lift_basisB = basisB.clone_with(k=0) # Natural output
-liftB = lambda A, n: d3.LiftTau(A, lift_basisB, n)
+liftB = lambda A, n: d3.Lift(A, lift_basisB, n)
 lift_basisS = basisS.clone_with(k=2)
-liftS = lambda A, n: d3.LiftTau(A, lift_basisS, n)
+liftS = lambda A, n: d3.Lift(A, lift_basisS, n)
 
 strain_rateB = grad(uB) + trans(grad(uB))
 strain_rateS = grad(uS) + trans(grad(uS))
@@ -199,11 +167,14 @@ slices = solver.evaluator.add_file_handler('slices', sim_dt=0.1, max_writes=10, 
 slices.add_task(TB(phi=0), name='TB mer right')
 slices.add_task(TB(phi=np.pi), name='TB mer left')
 slices.add_task(TB(theta=np.pi/2), name='TB eq')
-slices.add_task(TB(r=1/2), name='TB r=0.5')
+slices.add_task(TB(r=0.5), name='TB r=0.5')
+slices.add_task(TB(r=0.8), name='TB r=0.8')
+slices.add_task(TB(r=1), name='TB r=1')
 slices.add_task(TS(phi=0), name='TS mer right')
 slices.add_task(TS(phi=np.pi), name='TS mer left')
 slices.add_task(TS(theta=np.pi/2), name='TS eq')
 slices.add_task(TS(r=1.25), name='TS r=1.25')
+slices.add_task(TS(r=1.45), name='TS r=1.45')
 
 profiles = solver.evaluator.add_file_handler('profiles', sim_dt=0.1, max_writes=10, mode=file_handler_mode)
 profiles.add_task(s2_avg(TB), name='TB profile')

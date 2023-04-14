@@ -1,31 +1,31 @@
 """
-This script plots snapshots of the evolution of a 2D slice through the equator of a BallBasis simulation.
+This script plots snapshots of the evolution of a 2D slice through the meridion of a 
+simulation that spans both a BallBasis and a ShellBasis.
 
 Usage:
-    plot_equatorial_slices.py <root_dir> --r_inner=<r> --r_outer=<r> [options]
+    plot_meridional_slices.py [options]
 
 Options:
-    --data_dir=<dir>                    Name of data handler directory [default: slices]
-    --out_name=<out_name>               Name of figure output directory & base name of saved figures [default: snapshots_equatorial]
-    --start_fig=<fig_start_num>         Number of first figure file [default: 1]
-    --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
-    --n_files=<num_files>               Total number of files to plot
-    --dpi=<dpi>                         Image pixel density [default: 200]
+    --root_dir=<str>         Path to root directory containing data_dir [default: .]
+    --data_dir=<str>         Name of data handler directory [default: slices]
+    --out_name=<str>         Name of figure output directory & base name of saved figures [default: snapshots_meridional]
+    --start_fig=<int         Number of first figure file [default: 1]
+    --start_file=<int>       Number of Dedalus output file to start plotting at [default: 1]
+    --n_files=<int>          Total number of files to plot
+    --dpi=<int>              Image pixel density [default: 200]
+    --r_inner=<float>        Inner radius of shell [default: 1.0]
+    --r_outer=<float>        Outer radius of shell [default: 1.5]
 
-    --col_inch=<in>                     Number of inches / column [default: 3]
-    --row_inch=<in>                     Number of inches / row [default: 3]
+    --col_inch=<float>       Number of inches / column [default: 3]
+    --row_inch=<float>       Number of inches / row [default: 3]
 """
 from docopt import docopt
 args = docopt(__doc__)
 from plotpal.slices import SlicePlotter
 
 # Read in master output directory
-root_dir    = args['<root_dir>']
+root_dir    = args['--root_dir']
 data_dir    = args['--data_dir']
-if root_dir is None:
-    print('No dedalus output dir specified, exiting')
-    import sys
-    sys.exit()
 
 # Read in additional plot arguments
 start_fig   = int(args['--start_fig'])
@@ -46,5 +46,5 @@ plotter_kwargs = { 'col_inch' : int(args['--col_inch']), 'row_inch' : int(args['
 # remove_x_mean option removes the (numpy horizontal mean) over phi
 # divide_x_mean divides the radial mean(abs(T eq)) over the phi direction
 plotter.setup_grid(num_rows=1, num_cols=1, polar=True, **plotter_kwargs)
-plotter.add_ball_shell_meridional_colormesh(ball_left='TB mer left', ball_right='TB mer right', shell_left='TS mer left', shell_right='TS mer right', colatitude_basis='theta', radial_basis='r', r_inner=r_inner, r_outer=r_outer)
+plotter.add_ball_shell_meridional_colormesh(ball_left='TB mer left', ball_right='TB mer right', shell_left='TS mer left', shell_right='TS mer right', colatitude_basis='theta', radial_basis='r', r_inner=r_inner, r_outer=r_outer, remove_x_mean=True, divide_x_mean=True, label='T meridional')
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))

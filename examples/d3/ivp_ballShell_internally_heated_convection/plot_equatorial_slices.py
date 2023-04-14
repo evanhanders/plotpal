@@ -1,31 +1,31 @@
 """
-This script plots snapshots of the evolution of a 2D slice through the equator of a BallBasis simulation.
+This script plots snapshots of the evolution of a 2D slice through the equator of a 
+simulation that spans both a BallBasis and a ShellBasis.
 
 Usage:
-    plot_equatorial_slices.py <root_dir> --r_inner=<r> --r_outer=<r> [options]
+    plot_equatorial_slices.py [options]
 
 Options:
-    --data_dir=<dir>                    Name of data handler directory [default: slices]
-    --out_name=<out_name>               Name of figure output directory & base name of saved figures [default: snapshots_equatorial]
-    --start_fig=<fig_start_num>         Number of first figure file [default: 1]
-    --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
-    --n_files=<num_files>               Total number of files to plot
-    --dpi=<dpi>                         Image pixel density [default: 200]
+    --root_dir=<str>         Path to root directory containing data_dir [default: .]
+    --data_dir=<str>         Name of data handler directory [default: slices]
+    --out_name=<str>         Name of figure output directory & base name of saved figures [default: snapshots_equatorial]
+    --start_fig=<int         Number of first figure file [default: 1]
+    --start_file=<int>       Number of Dedalus output file to start plotting at [default: 1]
+    --n_files=<int>          Total number of files to plot
+    --dpi=<int>              Image pixel density [default: 200]
+    --r_inner=<float>        Inner radius of shell [default: 1.0]
+    --r_outer=<float>        Outer radius of shell [default: 1.5]
 
-    --col_inch=<in>                     Number of inches / column [default: 3]
-    --row_inch=<in>                     Number of inches / row [default: 3]
+    --col_inch=<float>       Number of inches / column [default: 3]
+    --row_inch=<float>       Number of inches / row [default: 3]
 """
 from docopt import docopt
 args = docopt(__doc__)
 from plotpal.slices import SlicePlotter
 
 # Read in master output directory
-root_dir    = args['<root_dir>']
+root_dir    = args['--root_dir']
 data_dir    = args['--data_dir']
-if root_dir is None:
-    print('No dedalus output dir specified, exiting')
-    import sys
-    sys.exit()
 
 # Read in additional plot arguments
 start_fig   = int(args['--start_fig'])

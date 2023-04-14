@@ -363,7 +363,7 @@ class SlicePlotter(SingleTypeReader):
     def add_meridional_colormesh(self, left=None, right=None, **kwargs):
         if left is not None and right is not None:
             self.colormeshes.append((self.counter, MeridionalColormesh(left, left=True, **kwargs)))
-            self.colormeshes.append((self.counter, MeridionalColormesh(right, linked_cbar_cm=self.colormeshes[-1][1], **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(right, linked_cbar_cm=self.colormeshes[-1][1], linked_profile_cm=self.colormeshes[-1][1], **kwargs)))
         self.counter += 1
 
     def add_ball_shell_polar_colormesh(self, ball=None, shell=None, r_inner=None, r_outer=None, **kwargs):
@@ -376,9 +376,10 @@ class SlicePlotter(SingleTypeReader):
         if ball_left is not None and shell_left is not None and ball_right is not None and shell_right is not None:
             self.colormeshes.append((self.counter, MeridionalColormesh(ball_left, left=True, r_inner=0, r_outer=r_inner, **kwargs)))
             first_cm = self.colormeshes[-1][1]
-            self.colormeshes.append((self.counter, MeridionalColormesh(ball_right, r_inner=0, r_outer=r_inner, linked_cbar_cm=first_cm, **kwargs)))
+            self.colormeshes.append((self.counter, MeridionalColormesh(ball_right, r_inner=0, r_outer=r_inner, linked_cbar_cm=first_cm, linked_profile_cm=first_cm, **kwargs)))
             self.colormeshes.append((self.counter, MeridionalColormesh(shell_left, left=True, r_inner=r_inner, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
-            self.colormeshes.append((self.counter, MeridionalColormesh(shell_right, r_inner=r_inner, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
+            first_cm_shell = self.colormeshes[-1][1]
+            self.colormeshes.append((self.counter, MeridionalColormesh(shell_right, r_inner=r_inner, r_outer=r_outer, linked_cbar_cm=first_cm, linked_profile_cm=first_cm_shell, **kwargs)))
         self.counter += 1
 
     def add_shell_shell_meridional_colormesh(self, left=None, right=None, r_inner=None, r_stitch=None, r_outer=None, **kwargs):
@@ -388,9 +389,10 @@ class SlicePlotter(SingleTypeReader):
             raise ValueError("r_inner, r_stitch, and r_outer must be specified")
         self.colormeshes.append((self.counter, MeridionalColormesh(left[0], left=True, r_inner=r_inner, r_outer=r_stitch, **kwargs)))
         first_cm = self.colormeshes[-1][1]
-        self.colormeshes.append((self.counter, MeridionalColormesh(right[0], r_inner=r_inner, r_outer=r_stitch, linked_cbar_cm=first_cm, **kwargs)))
+        self.colormeshes.append((self.counter, MeridionalColormesh(right[0], r_inner=r_inner, r_outer=r_stitch, linked_cbar_cm=first_cm, linked_profile_cm=first_cm, **kwargs)))
         self.colormeshes.append((self.counter, MeridionalColormesh(left[1], left=True, r_inner=r_stitch, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
-        self.colormeshes.append((self.counter, MeridionalColormesh(right[1], r_inner=r_stitch, r_outer=r_outer, linked_cbar_cm=first_cm, **kwargs)))
+        outer_cm = self.colormeshes[-1][1]
+        self.colormeshes.append((self.counter, MeridionalColormesh(right[1], r_inner=r_stitch, r_outer=r_outer, linked_cbar_cm=first_cm, linked_profile_cm=outer_cm, **kwargs)))
         self.counter += 1
 
 
