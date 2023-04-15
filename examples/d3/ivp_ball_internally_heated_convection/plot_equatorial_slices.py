@@ -37,7 +37,7 @@ plotter = SlicePlotter(root_dir, file_dir=data_dir, out_name=out_name, start_fil
 plotter_kwargs = { 'col_inch' : int(args['--col_inch']), 'row_inch' : int(args['--row_inch']), 'pad_factor' : 10 }
 
 # remove_x_mean option removes the (numpy horizontal mean) over phi
-# divide_x_mean divides the radial mean(abs(T eq)) over the phi direction
+# divide_x_std divides the radial mean(abs(T eq)) over the phi direction
 plotter.setup_grid(num_cols=1, num_rows=1, polar=True, **plotter_kwargs)
-plotter.add_polar_colormesh('T(equator)', azimuth_basis='phi', radial_basis='r', remove_x_mean=True, divide_x_mean=True, r_inner=0, r_outer=radius)
+plotter.add_polar_colormesh('T(equator)', azimuth_basis='phi', radial_basis='r', remove_x_mean=True, divide_x_std=True, r_inner=0, r_outer=radius)
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))

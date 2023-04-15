@@ -165,13 +165,14 @@ class Box:
         self.left_mid, self.right_mid, self.top_mid = left_mid, right_mid, top_mid
         self.x_basis, self.y_basis, self.z_basis = x_basis, y_basis, z_basis
         self.vector_ind = vector_ind
-        self.cmap = cmap
+        self.cmap, self.label = cmap, label
         self.vmin, self.vmax = vmin, vmax
         self.cmap_exclusion = cmap_exclusion
         self.log, self.pos_def = log, pos_def
         self.remove_mean, self.remove_x_mean, self.divide_x_std = remove_mean, remove_x_mean, divide_x_std
         self.azim, self.elev = azim, elev
         self.stretch = stretch
+        self.first = True
 
         if label is None:
             self.label = 'field'
@@ -620,9 +621,7 @@ class CutSphere:
         mean_interior = np.mean(self.radial_stdev[0, :int(num_r*0.05)])
         mean_boundary = self.radial_stdev[0, int(num_r*0.05)]
 
-        print(self.radial_stdev)
         self.radial_stdev[0, :int(num_r*0.05)] = np.linspace(mean_interior, mean_boundary, int(num_r*0.05))
-        print(self.radial_stdev)
         eq_field = self._modify_field(eq_field)
         self.eq_data['field'] = np.pad(eq_field.squeeze()[:, self.r_full <= self.r_outer], ((1,0), (1,0)), mode = 'edge')
 
@@ -850,7 +849,7 @@ class PyVistaSpherePlotter(PyVistaBoxPlotter):
         self.grid = PyVista3DPlotGrid(**kwargs)
     
     def add_sphere(self, *args, **kwargs):
-        self.spheres.append((self.counter, CutSphere(self, *args, **kwargs)))
+        self.spheres.append((self.counter, CutSphere(*args, **kwargs)))
         self.counter += 1
 
     def plot_spheres(self, start_fig=1, **kwargs):

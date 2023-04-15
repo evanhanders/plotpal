@@ -44,7 +44,7 @@ plotter_kwargs = { 'col_inch' : int(args['--col_inch']), 'row_inch' : int(args['
 
 # Just plot a single plot (1x1 grid) of the field "T eq"
 # remove_x_mean option removes the (numpy horizontal mean) over phi
-# divide_x_mean divides the radial mean(abs(T eq)) over the phi direction
+# divide_x_std divides the radial mean(abs(T eq)) over the phi direction
 plotter.setup_grid(num_rows=1, num_cols=1, polar=True, **plotter_kwargs)
-plotter.add_ball_shell_meridional_colormesh(ball_left='TB mer left', ball_right='TB mer right', shell_left='TS mer left', shell_right='TS mer right', colatitude_basis='theta', radial_basis='r', r_inner=r_inner, r_outer=r_outer, remove_x_mean=True, divide_x_mean=True, label='T meridional')
+plotter.add_ball_shell_meridional_colormesh(ball_left='TB mer left', ball_right='TB mer right', shell_left='TS mer left', shell_right='TS mer right', colatitude_basis='theta', radial_basis='r', r_inner=r_inner, r_outer=r_outer, remove_x_mean=True, divide_x_std=True, label='T meridional')
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))

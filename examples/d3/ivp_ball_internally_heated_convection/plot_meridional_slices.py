@@ -38,7 +38,7 @@ plotter = SlicePlotter(root_dir, file_dir=data_dir, out_name=out_name, start_fil
 plotter_kwargs = { 'col_inch' : int(args['--col_inch']), 'row_inch' : int(args['--row_inch']), 'pad_factor' : 10}
 
 # remove_x_mean option removes the (numpy horizontal mean) over phi
-# divide_x_mean divides the radial mean(abs(T mer left)) over the phi direction
+# divide_x_std divides the radial mean(abs(T mer left)) over the phi direction
 plotter.setup_grid(num_cols=1, num_rows=1, polar=True, **plotter_kwargs)
 plotter.add_meridional_colormesh(left='T(phi=pi)', right='T(phi=0)', colatitude_basis='theta', radial_basis='r', remove_x_mean=False, r_inner=0, r_outer=radius, label='T meridional')
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))

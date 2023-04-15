@@ -37,5 +37,5 @@ plotter = SlicePlotter(root_dir, file_dir=data_dir, out_name=out_name, start_fil
 plotter_kwargs = { 'col_inch' : float(args['--col_inch']), 'row_inch' : float(args['--row_inch']) }
 
 plotter.setup_grid(num_rows=1, num_cols=1, **plotter_kwargs)
-plotter.add_colormesh('b', x_basis='x', y_basis='z', remove_x_mean=True, divide_x_mean=True)
+plotter.add_colormesh('b', x_basis='x', y_basis='z', remove_x_mean=True, divide_x_std=True)
 plotter.plot_colormeshes(start_fig=start_fig, dpi=int(args['--dpi']))
