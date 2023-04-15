@@ -7,11 +7,14 @@ To install plotpal on your local machine, navigate to the root plotpal/ director
 
 > pip3 install -e .
 
-Note that plotpal is built on [matplotlib](https://matplotlib.org/), and uses some parallel functionality of [dedalus](https://dedalus-project.org/). Some plot types, like orthographic projections, rely on [cartopy](https://scitools.org.uk/cartopy/docs/latest/). For full functionality, make sure all of these are installed.
+Note that plotpal is built on [matplotlib](https://matplotlib.org/), and uses some parallel functionality of [Dedalus](https://dedalus-project.org/). 
 
 ## Dependencies
+Plotpal relies on the full [Dedalus](https://dedalus-project.org/) stack (e.g., numpy, matplotlib, and dedalus itself) for full functionality.
 
-* Volumetric plotting requires PyVista >= 0.38.5
+Some additional features also rely on:
+* Volumetric plotting requires [PyVista](https://docs.pyvista.org/version/stable/index.html) >= 0.38.5.
+* Orthographic projections require [CartoPy](https://scitools.org.uk/cartopy/docs/latest/).
 
 # Usage
 
@@ -19,4 +22,4 @@ Note that plotpal is built on [matplotlib](https://matplotlib.org/), and uses so
 2. Put in the fields you care about plotting.
 3. Make some plots!
 
-By default, plots will be located within the parent directory of your Dedalus simulation, close to where the handlers output the data.
+By default, plots will be located within the parent directory of your Dedalus simulation, in a new folder.
