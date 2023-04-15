@@ -1,8 +1,6 @@
 from collections import OrderedDict
-import os
 import logging
 from sys import stdout
-from sys import path
 
 import numpy as np
 import h5py
@@ -19,6 +17,7 @@ from dedalus.extras.flow_tools import GlobalArrayReducer
 logger = logging.getLogger(__name__.split('.')[-1])
 
 def save_dim_scale(dim, scale_group, task_name, scale_name, scale_data, dtype=np.float64):
+    """ Saves a dimension scale from a HDF5 task to a new HDF5 group """
     full_scale_name = '{} - {}'.format(task_name, scale_name)
     scale_dset = scale_group.create_dataset(name=full_scale_name, shape=scale_data.shape, dtype=dtype)
     scale_dset[:] = scale_data
@@ -27,9 +26,14 @@ def save_dim_scale(dim, scale_group, task_name, scale_name, scale_data, dtype=np
 
 
 class AveragedProfilePlotter(SingleTypeReader):
-    """ Plots time-averaged profiles """
+    """ 
+    A class for breaking up profiles into evenly spaced sequential chunks and 
+    averaging them to reduce noise. Includes functionality to save the averaged
+    profiles to hdf5 files and plot them. 
+    """
 
     def __init__(self, *args, writes_per_avg=100, **kwargs):
+        """ Initialize the AveragedProfilePlotter """
         super().__init__(*args, chunk_size=writes_per_avg, distribution='even-chunk', **kwargs)
         self.writes_per_avg = writes_per_avg
         self.plots = []
@@ -39,6 +43,22 @@ class AveragedProfilePlotter(SingleTypeReader):
         self.stored_bases = OrderedDict()
 
     def add_average_plot(self, x_basis=None, y_tasks=None, name=None, fig_height=3, fig_width=3):
+        """ 
+        Specifies a profile to average and plot. 
+        
+        Parameters
+        ----------
+        x_basis : str
+            The basis that the profiles can be plotted against.
+        y_tasks : str or tuple of strs
+            A list of the tasks to plot.
+        name : str
+            The name of the plot file.
+        fig_height : float
+            The height of the figure in inches.
+        fig_width : float
+            The width of the figure in inches.
+        """
         if x_basis is None or y_tasks is None or name is None:
             raise ValueError("Must specify x_basis (str), y_tasks (str or tuple of strs), and name (str)")
         if isinstance(y_tasks, str):
@@ -50,31 +70,47 @@ class AveragedProfilePlotter(SingleTypeReader):
                 self.stored_averages[task] = []
 
     def plot_average_profiles(self, dpi=200, save_data=False):
+        """
+        Plots the averaged profiles.
+
+        Parameters
+        ----------
+        dpi : int
+            The resolution of the saved plots. 
+        save_data : bool
+            Whether to save the averaged profiles to hdf5 files.
+        """
         local_count = 0
         start_time = None
         while self.writes_remain():
             dsets, ni = self.get_dsets(self.tasks)
             for task in self.tasks:
-                if local_count == 0:
+                if local_count == 0: #Reset the average
                     self.averages[task] = np.zeros_like(dsets[task][ni,:].squeeze())
                     start_time = dsets[task].dims[0]['sim_time'][ni]
-                self.averages[task] += dsets[task][ni,:].squeeze()
+                self.averages[task] += dsets[task][ni,:].squeeze() #Add the current profile to the average
             local_count += 1
+
+            #Check if we have enough profiles to average
             if local_count == self.writes_per_avg:
-                write_number = int(dsets[task].dims[0]['write_number'][ni]/self.writes_per_avg)
+                write_number = int(dsets[task].dims[0]['write_number'][ni]/self.writes_per_avg) 
                 if self.comm.rank == 0:
                     print('writing average profiles; plot number {}'.format(write_number))
                     stdout.flush()
                 end_time = dsets[task].dims[0]['sim_time'][ni]
+
+                # Loop over the plots and plot the profiles
                 for plot_info in self.plots:
                     x_basis, y_tasks, name, grid = plot_info
                     ax = grid.axes['ax_0-0']
                     for task in y_tasks:
+                        # Get the x-profile to plot this y-profile against.
                         if task in self.stored_bases:
                             x = self.stored_bases[task][1]
                         else:
                             x = match_basis(dsets[task], x_basis)
                             self.stored_bases[task] = (x_basis, x)
+                        # Divide by the number of profiles to get the average
                         y = self.averages[task]/local_count
                         ax.plot(x, y, label=task)
                     ax.set_xlabel(x_basis)
@@ -82,6 +118,7 @@ class AveragedProfilePlotter(SingleTypeReader):
                     plt.suptitle('t = {:.2e}-{:.2e}'.format(start_time, end_time))
                     grid.fig.savefig('{:s}/{:s}_{:03d}.png'.format(self.out_dir, name, write_number), dpi=dpi, bbox_inches='tight')
                     ax.clear()
+                # If we're going to save the data, we need to store it.
                 if save_data:
                     for task in self.tasks:
                         y = self.averages[task]/local_count
@@ -91,6 +128,7 @@ class AveragedProfilePlotter(SingleTypeReader):
                 self.save_averaged_profiles()
 
     def save_averaged_profiles(self):
+        """ Saves the averaged profiles to hdf5 files. """
         reducer = GlobalArrayReducer(self.comm)
         save_data = OrderedDict()
         for task in self.tasks:
@@ -134,9 +172,14 @@ class AveragedProfilePlotter(SingleTypeReader):
 
 
 class RolledProfilePlotter(SingleTypeReader):
-    """ Plots time-averaged profiles """
+    """ 
+    A class for stepping through each profile in an IVP's output and plotting rolled
+    averages to reduce noise and see evolution. Includes functionality to save the averaged
+    profiles to hdf5 files and plot them. 
+    """
 
     def __init__(self, *args, roll_writes=20, **kwargs):
+        """ Initialize the plotter. """
         super().__init__(*args, roll_writes=roll_writes, **kwargs)
         self.lines = []
         self.tasks = []
@@ -147,6 +190,7 @@ class RolledProfilePlotter(SingleTypeReader):
         self.grid = RegularPlotGrid(*args, **kwargs)
 
     def use_custom_grid(self, custom_grid):
+        """ Allows user to pass in a custom PlotGrid object. """
         self.grid = custom_grid
 
     def _groom_grid(self):
@@ -161,7 +205,7 @@ class RolledProfilePlotter(SingleTypeReader):
 
     def add_line(self, basis, task, grid_num, needed_tasks=None, ylim=(None, None), **kwargs):
         """
-        Add a line to the plotter.
+        Specifies a profile to plot rolled averages of. 
 
         Parameters
         ----------
@@ -169,11 +213,16 @@ class RolledProfilePlotter(SingleTypeReader):
                 The name of the dedalus basis for the x-axis
             task : str or python function
                 If str, must be the name of a profile
-                If function, must accept a matplotlib subplot axis (ax), a dictionary of datasets, as well as an integer for indexing
+                If function, must accept as arguments, in order:
+                     1. a matplotlib subplot axis (ax), 
+                     2. a dictionary of datasets (dsets), 
+                     3. an integer for indexing (ni)
             grid_num : int
                 Panel index for the plot
             ylim (optional) : tuple of floats
                 Y-limits for the plot
+            **kwargs :
+                Keyword arguments to pass to the matplotlib.pyplot.plot function
         """
         if 'color' not in kwargs and 'c' not in kwargs:
             kwargs['color'] = 'C' + str(self.color_ind)
@@ -184,10 +233,10 @@ class RolledProfilePlotter(SingleTypeReader):
             kwargs['label'] = task
         self.lines.append((grid_num, basis, task, ylim, kwargs, needed_tasks))
 
-    def plot_lines(self, start_fig=1, dpi=200, save_profiles=True):
+    def plot_lines(self, start_fig=1, dpi=200, save_profiles=False):
 
         """
-        Plot figures of the 2D dedalus data slices at each timestep.
+        Plot figures of the rolled dedalus profiles at each timestep.
 
         # Arguments
             start_fig (int) :
@@ -205,9 +254,11 @@ class RolledProfilePlotter(SingleTypeReader):
             for line_data in self.lines:
                 this_task = line_data[2]
                 if type(this_task) == str:
+                    # plot is a simple handler output profile.
                     if this_task not in tasks:
                         tasks.append(this_task)
                 else:
+                    # plot is a function.
                     needed_tasks = line_data[5]
                     for task in needed_tasks:
                         if task not in tasks:
@@ -222,12 +273,14 @@ class RolledProfilePlotter(SingleTypeReader):
             while self.writes_remain():
                 dsets, ni = self.get_dsets(tasks)
                 time_data = self.current_file_handle['scales']
+
                 if save_profiles:
                     saved_times.append(time_data['sim_time'][ni])
                     saved_writes.append(time_data['write_number'][ni])
                     for k in tasks:
                         saved_profiles[k].append(dsets[k][ni])
 
+                # Plot the profiles
                 for line_data in self.lines:
                     ind, basis, task, ylim, kwargs, needed_tasks = line_data
                     ax = axs[ind]
@@ -248,12 +301,15 @@ class RolledProfilePlotter(SingleTypeReader):
 
                 self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)), dpi=dpi, bbox_inches='tight')
                 for ax in axs: ax.clear()
+
             if save_profiles:
                 self._save_profiles(saved_bases, saved_profiles, saved_times, saved_writes)
 
     def _save_profiles(self, bases, profiles, times, writes):
         """
-        Saves post-processed, time-averaged profiles out to a file 
+        Saves time-averaged profiles to a file.
+
+        Warning: this function can take a long time to run if there are many writes.
 
         # Arguments
             bases (OrderedDict) :

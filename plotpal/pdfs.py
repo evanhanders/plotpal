@@ -23,30 +23,16 @@ logger = logging.getLogger(__name__.split('.')[-1])
 
 class PdfPlotter(SingleTypeReader):
     """
-    A class for plotting probability distributions of a dedalus output.
+    A class for plotting probability distributions of a dedalus output task.
 
     PDF plots are currently implemented for 2D slices and 3D volumes. 
     When one axis is represented by polynomials that exist on an uneven basis (e.g., Chebyshev),
     that basis is evenly interpolated to avoid skewing of the distribution by uneven grid sampling.
-
-    # Public Methods
-    - __init__()
-    - calculate_pdfs()
-    - plot_pdfs()
-
-    # Additional Attributes
-        pdfs (OrderedDict) :
-            Contains PDF data (x, y, dx)
-        pdf_stats (OrderedDict) :
-            Contains scalar stats for the PDFS (mean, stdev, skew, kurtosis)
     """
 
     def __init__(self, *args, **kwargs):
         """
         Initializes the PDF plotter.
-
-        # Arguments
-            *args, **kwargs : Additional keyword arguments for super().__init__()  (see file_reader.py)
         """
         super(PdfPlotter, self).__init__(*args, distribution='even-write', **kwargs)
         self.pdfs = OrderedDict()
@@ -70,13 +56,17 @@ class PdfPlotter(SingleTypeReader):
         For 2D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
         # Arguments
+            dsets (dict) :
+                A dictionary of links to dedalus output tasks in hdf5 files.
+            ni (int) :
+                The index of the slice to be interpolate.
             uneven_basis (string, optional) :
                 The basis on which the grid has uneven spacing.
         """
         #Read data
         bases = self.current_bases
 
-        # Put data on an even grid
+        # Create an even x- and y- grid
         x, y = [match_basis(dsets[next(iter(dsets))], bn) for bn in bases]
         if bases[0] == uneven_basis:
             even_x = np.linspace(x.min(), x.max(), len(x))
@@ -88,6 +78,7 @@ class PdfPlotter(SingleTypeReader):
             even_x, even_y = x, y
         eyy, exx = np.meshgrid(even_y, even_x)
 
+        # Interpolate data onto the even grid
         file_data = OrderedDict()
         for k in dsets.keys(): 
             file_data[k] = np.zeros(dsets[k][ni].shape)
@@ -101,13 +92,17 @@ class PdfPlotter(SingleTypeReader):
         For 3D data on an uneven grid, interpolates that data on to an evenly spaced grid.
 
         # Arguments
+            dsets (dict) :
+                A dictionary of links to dedalus output tasks in hdf5 files.
+            ni (int) :
+                The index of the field to be interpolate.
             uneven_basis (string, optional) :
                 The basis on which the grid has uneven spacing.
         """
         #Read data
         bases = self.current_bases
 
-        # Put data on an even grid
+        # Create an even x-, y-, and z- grid
         x, y, z = [match_basis(dsets[next(iter(dsets))], bn) for bn in bases]
         uneven_index  = None
         if bases[0] == uneven_basis:
@@ -138,6 +133,7 @@ class PdfPlotter(SingleTypeReader):
 
         file_data = OrderedDict()
 
+        # Interpolate data onto the even grid
         #TODO: Double-check logic here -- this is years old.
         for k in dsets.keys(): 
             file_data[k] = np.zeros(dsets[k][ni].shape)
@@ -158,13 +154,15 @@ class PdfPlotter(SingleTypeReader):
 
         return file_data
 
-
-
     def _get_bounds(self, pdf_list):
         """
-        Finds the global minimum and maximum value of histogram boundaries
-        """
-        
+        Finds the global minimum and maximum value of fields for determing PDF range.
+
+        Arguments
+        ---------
+        pdf_list : list
+            A list of fields for which to calculate the global minimum and maximum.
+        """    
         with self.my_sync:
             if self.idle : return
 
@@ -173,12 +171,19 @@ class PdfPlotter(SingleTypeReader):
                 bounds[field] = np.zeros(2)
                 bounds[field][:] = np.nan
 
+            # Find the local minimum and maximum
             while self.writes_remain():
                 dsets, ni = self.get_dsets(pdf_list)
                 for field in pdf_list:
                     if np.isnan(bounds[field][0]):
                         bounds[field][0], bounds[field][1] = dsets[field][ni].min(), dsets[field][ni].max()
+                    else:
+                        if dsets[field][ni].min() < bounds[field][0]:
+                            bounds[field][0] = dsets[field][ni].min()
+                        if dsets[field][ni].max() > bounds[field][1]:
+                            bounds[field][1] = dsets[field][ni].max()
 
+            # Communicate the global minimum and maximum
             for field in pdf_list:
                 buff     = np.zeros(1)
                 self.comm.Allreduce(bounds[field][0], buff, op=MPI.MIN)
@@ -198,12 +203,12 @@ class PdfPlotter(SingleTypeReader):
             pdf_list (list) :
                 The names of the tasks to create PDFs of
             bins (int, optional) :
-                The number of bins the PDF should have
+                The number of bins the PDF (histogram) should have
             threeD (bool, optional) :
                 If True, find PDF of a 3D volume
             bases (list, optional) :
                 A list of strings of the bases over which the simulation information spans. 
-                Should have 2 elements if threeD is false, 3 elements if threeD is true.
+                Should have 2 elements if threeD is False, 3 elements if threeD is True.
             **kwargs : additional keyword arguments for the self._get_interpolated_slices() function.
         """
         self.current_bases = bases
@@ -220,6 +225,8 @@ class PdfPlotter(SingleTypeReader):
 
             while self.writes_remain():
                 dsets, ni = self.get_dsets(pdf_list)
+
+                # Interpolate data onto a regular grid
                 if threeD:
                     file_data = self._get_interpolated_volumes(dsets, ni, **kwargs)
                 else:
@@ -233,10 +240,12 @@ class PdfPlotter(SingleTypeReader):
 
 
             for field in pdf_list:
+                # Communicate the global histogram (counts per bin)
                 loc_hist    = np.array(histograms[field], dtype=np.float64)
                 global_hist = np.zeros_like(loc_hist, dtype=np.float64)
                 self.comm.Allreduce(loc_hist, global_hist, op=MPI.SUM)
 
+                # Calculate the PDF from the histogram
                 dx = bin_edges[field][1]-bin_edges[field][0]
                 x_vals  = bin_edges[field][:-1] + dx/2
                 pdf     = global_hist/np.sum(global_hist)/dx
@@ -252,7 +261,7 @@ class PdfPlotter(SingleTypeReader):
         # Arguments
             dpi (int, optional) :
                 Pixel density of output image.
-            **kwargs : additional keyword arguments for PlotGrid()
+            **kwargs : additional keyword arguments for RegularPlotGrid()
         """
         with self.my_sync:
             if self.comm.rank != 0: return

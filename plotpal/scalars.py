@@ -1,14 +1,10 @@
 import logging
-import os
 from collections import OrderedDict
-from sys import path
-from sys import stdout
 
 import numpy as np
 import h5py
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 matplotlib.rcParams.update({'font.size': 9})
 
@@ -20,23 +16,11 @@ logger = logging.getLogger(__name__.split('.')[-1])
 
 class ScalarFigure(RegularPlotGrid):
     """
-    A simple extension of the PlotGrid class tailored specifically for scalar line traces.
+    A simple extension of the RegularPlotGrid class tailored specifically for scalar line traces.
 
     Scalar traces are put on panels, which are given integer indices.
     Panel 0 is the axis subplot to the upper left, and panel indices increase to the
     right, and downwards, like reading a book.
-
-    # Public Methods
-    - __init__()
-    - add_field()
-
-    # Attributes
-        panels (list) :
-            a list of ordered keys to the plot grid's axes dictionary
-        panel_fields (list) :
-            a list of lists. Each panel has a list of strings that are displayed on that panel.
-        fig_name (string) :
-            an informative string that says what this figure shows
     """
 
     def __init__(self, *args, fig_name=None, **kwargs):
@@ -76,31 +60,14 @@ class ScalarFigure(RegularPlotGrid):
             self.color_ind[panel] += 1
         self.panel_fields[panel].append((field, log, kwargs))
 
+
 class ScalarPlotter(SingleTypeReader):
     """
     A class for plotting traces of scalar values from dedalus output.
-
-    # Methods
-    - __init__()
-    - load_figures()
-    - plot_figures()
-    - plot_convergence_figures()
-
-
-    # Attributes
-        fields (list) :
-           Names of dedalus tasks to pull from file 
-        trace_data (OrderedDict) :
-            Contains NumPy arrays of scalar traces from files
     """
 
     def __init__(self, *args, roll_writes=None, **kwargs):
-        """
-        Initializes the scalar plotter.
-
-        # Arguments
-            *args, **kwargs : Additional keyword arguments for super().__init__() 
-        """
+        """ Initializes the scalar plotter.        """
         super().__init__(*args, distribution='single', **kwargs)
         if roll_writes is not None:
             self.rolled_reader = SingleTypeReader(*args, distribution='single', roll_writes=roll_writes, **kwargs)
@@ -111,8 +78,7 @@ class ScalarPlotter(SingleTypeReader):
 
     def load_figures(self, fig_list):
         """
-        Loads ScalarFigures into the object, and parses them to see which 
-        fields must be read from file.
+        Loads a list of ScalarFigure objects and parses them to see which fields must be read from file.
 
         # Arguments
             fig_list (list) : 
@@ -129,12 +95,16 @@ class ScalarPlotter(SingleTypeReader):
         """ Reads scalar data from file """
         with self.my_sync:
             if self.idle: return
+
+            # Make space for the data
             self.trace_data = OrderedDict()
             for f in self.fields: 
                 self.trace_data[f] = []
                 if self.rolled_reader is not None:
                     self.trace_data['rolled_{}'.format(f)] = []
             self.trace_data['sim_time'] = []
+
+            # Read the data (currently write-by-write; could be improved but scalars are small so shrug)
             while self.writes_remain():
                 dsets, ni, rdsets, ri = self.get_dsets(self.fields)
                 for f in self.fields: 
@@ -162,6 +132,7 @@ class ScalarPlotter(SingleTypeReader):
                 f[k] = fd
 
     def get_dsets(self, *args, **kwargs):
+        """ A wrapper for the parent class's get_dsets method that also returns the rolled reader's dsets if it exists"""
         dsets, ni = super().get_dsets(*args, **kwargs)
         if self.rolled_reader is not None:
             rolled_dsets, ri = self.rolled_reader.get_dsets(*args, **kwargs)
@@ -170,6 +141,7 @@ class ScalarPlotter(SingleTypeReader):
         return dsets, ni, rolled_dsets, ri
 
     def writes_remain(self):
+        """ A wrapper for the parent class's writes_remain method that also returns the rolled reader's writes_remain if it exists"""
         if self.rolled_reader is None:
             return super().writes_remain()
         else:

@@ -13,7 +13,16 @@ from dedalus.tools import post
 
 logger = logging.getLogger(__name__.split('.')[-1])
 
+def match_basis(dset, basis):
+    """ Returns a 1D numpy array of the requested basis given a Dedalus dataset and basis name (string). """
+    for i in range(len(dset.dims)):
+        if dset.dims[i].label == basis:
+            return dset.dims[i][0][:].ravel()
+
+
 class RolledDset:
+    """ A wrapper for data which has been rolled in time to make it behave like a Dedalus dataset."""
+
     def __init__(self, dset, ni, rolled_data):
         self.dims = dset.dims
         self.ni = ni
@@ -28,44 +37,39 @@ class RolledDset:
             raise ValueError("Wrong index value used for currently stored rolled data")
 
 
-def match_basis(dset, basis):
-    """ Returns a 1D numpy array of the requested basis "n bases: """
-    for i in range(len(dset.dims)):
-        if dset.dims[i].label == basis:
-            return dset.dims[i][0][:].ravel()
-
-
 class FileReader:
     """ 
     A general class for reading and interacting with Dedalus output data.
     This class takes a list of dedalus files and distributes them across MPI processes according to a specified rule.
     """
 
-    def __init__(self, run_dir, distribution='even-write', sub_dirs=['slices',], num_files=[None,], start_file=1, global_comm=MPI.COMM_WORLD, **kwargs):
+    def __init__(self, run_dir, distribution='even-write', sub_dirs=['slices',], num_files=[None,], 
+                 start_file=1, global_comm=MPI.COMM_WORLD, **kwargs):
         """
         Initializes the file reader.
 
         # Arguments
         run_dir (str) :
-            As defined in class-level docstring
+            Root directory of the Dedalus run.
         distribution (string, optional) : 
             Type of MPI file distribution (see _distribute_writes() function)
         sub_dirs (list, optional) :
-            As defined in class-level docstring
+            Directories corresponding to the names of dedalus file handlers.
         num_files (list, optional) :
-            Number of files to read in each subdirectory. If None, read them all.
+            Max number of files to read in each subdirectory. If None, read them all.
         start_file (int, optional) :
             File number to start reading from (1 by default)
         global_comm (mpi4py Comm, optional) :
-            As defined in class-level docstring
+            MPI communicator to use for distributing files.
         **kwargs (dict) : 
             Additional keyword arguments for the self._distribute_writes() function.
         """
-        self.run_dir    = os.path.expanduser(run_dir)
-        self.sub_dirs   = sub_dirs
-        self.file_lists = OrderedDict()
-        self.global_comm       = global_comm
+        self.run_dir     = os.path.expanduser(run_dir)
+        self.sub_dirs    = sub_dirs
+        self.file_lists  = OrderedDict()
+        self.global_comm = global_comm
 
+        # Get all files ending in _s*.h5
         for d, n in zip(sub_dirs, num_files):
             files = []
             for f in os.listdir('{:s}/{:s}/'.format(self.run_dir, d)):
@@ -76,11 +80,10 @@ class FileReader:
                     files.append('{:s}/{:s}/{:s}'.format(self.run_dir, d, f))
             self.file_lists[d] = natural_sort(files)
 
-        # TODO: change _distribute_writes() to use dedalus.tools.post.get_assigned_writes.
-        self.file_starts = OrderedDict()
-        self.file_counts = OrderedDict()
-        self.comms = OrderedDict()
-        self.idle = OrderedDict()
+        self.file_starts = OrderedDict() # Start index of files for each file type
+        self.file_counts = OrderedDict() # Number of counts per file for each file type
+        self.comms = OrderedDict() # MPI communicators for each file type
+        self.idle = OrderedDict() # Whether or not this processor is idle for each file type
         self._distribute_writes(distribution, **kwargs)
 
     def _distribute_writes(self, distribution, chunk_size=100):
@@ -96,7 +99,10 @@ class FileReader:
         # Arguments
             distribution (string) : 
                 Type of MPI file distribution
+            chunk_size (int, optional) :
+                If distribution == 'even-chunk', this is the number of writes per chunk.
         """
+        #Loop over each file handler type
         for k, files in self.file_lists.items():
             writes = np.array(post.get_all_writes(files))
             set_ends = np.cumsum(writes)
@@ -105,6 +111,7 @@ class FileReader:
 
             # Distribute writes
             if distribution.lower() == 'single':
+                # Process 0 gets all files, all other processes are idle
                 num_procs = 1
                 if self.global_comm.rank == 0:
                     self.file_starts[k] = np.zeros_like(writes)
@@ -114,18 +121,22 @@ class FileReader:
                     self.file_counts[k] = np.zeros_like(writes)
                     self.idle[k] = True
             elif distribution.lower() == 'even-write':
+                # Evenly distribute writes over all processes using Dedalus logic
                 self.file_starts[k], self.file_counts[k] = post.get_assigned_writes(files)
                 writes_per = np.ceil(np.sum(writes)/self.global_comm.size)
                 num_procs = int(np.ceil(np.sum(writes) / writes_per))
             elif distribution.lower() == 'even-file':
+                # Evenly distribute files over all processes; files are not split by write.
                 self.file_starts[k] = np.copy(writes)
                 self.file_counts[k] = np.zeros_like(writes)
                 if len(files) <= self.global_comm.size:
+                    #Some processes will be idle
                     num_procs = len(files)
                     if self.global_comm.rank < len(files):
                         self.file_starts[k][self.global_comm.rank] = 0
                         self.file_counts[k][self.global_comm.rank] = writes[self.global_comm.rank]
                 else:
+                    #All processes will have at least one file
                     file_per = int(np.ceil(len(files) / self.global_comm.size))
                     proc_start = self.global_comm.rank * file_per
                     self.file_starts[k][proc_start:proc_start+file_per] = 0
@@ -135,6 +146,8 @@ class FileReader:
                 num_procs = int(np.ceil(np.sum(writes) / chunk_size))
                 chunk_adjust = 1
                 if num_procs > self.global_comm.size:
+                        # If there are more chunks than processes, figure out how many chunks each process will get
+                        # TODO: Check if this is correct.
                         chunk_adjust = int(np.floor(num_procs/self.global_comm.size))
                         if self.global_comm.rank < num_procs % self.global_comm.size:
                             chunk_adjust += 1
@@ -145,7 +158,7 @@ class FileReader:
                 self.file_counts[k] = np.clip(proc_start+chunk_size, a_min=set_starts, a_max=set_ends) - self.file_starts[k]
                 self.file_starts[k] -= set_starts
             else:
-                raise ValueError("invalid distribution choice.")
+                raise ValueError("invalid distribution choice. Please choose 'single', 'even-write', 'even-file', or 'even-chunk'")
 
             # Distribute comms
             if num_procs == self.global_comm.size:
@@ -161,9 +174,16 @@ class FileReader:
 class RollingFileReader(FileReader):
     """ 
     Distributes files for even processing, but also keeps track of surrounding writes
-    for taking rolling averages over tasks
+    and takes rolling averages of the data.
+
+    TODO: Write unit tests for this class' distribution method. Possibly use pandas to roll the data.
     """
+
     def __init__(self, *args, roll_writes=10, **kwargs):
+        """ 
+        Initialize RollingFileReader. roll_writes is the number of writes (before and after current write) to average over.
+        So if roll_writes = 10, then the average is over 20 writes (current, 10 before, 9 after).
+        """
         self.roll_writes = roll_writes
         super().__init__(*args, **kwargs)
 
@@ -182,8 +202,9 @@ class RollingFileReader(FileReader):
             local_writes = np.sum(base_counts)
             self.roll_starts[k] = np.zeros((local_writes, len(base_counts)), dtype=np.int32)
             self.roll_counts[k] = np.zeros((local_writes, len(base_counts)), dtype=np.int32)
-            global_indices = np.zeros(local_writes, dtype=np.int32)
 
+            #Build array containing global indices of all writes if all files were concatenated.
+            global_indices = np.zeros(local_writes, dtype=np.int32)
             counter = 0
             for i, counts in enumerate(base_counts):
                 if counts > 0:
@@ -213,25 +234,14 @@ class RollingFileReader(FileReader):
                     file_index += 1
 
 
-
 class SingleTypeReader():
     """
-    An abstract class for plotters that only deal with a single directory of Dedalus data
-
-    # Attributes
-        out_name (str) : 
-            Base name of output figures
-        my_sync (Sync) : 
-            Keeps processes synchronized in the code even when some are idle
-        out_dir (str) : 
-            Path to location where pdf output files are saved
-        reader (FileReader) :  
-            A file reader for interfacing with Dedalus files
+    A class for reading Dedalus data from a single file handler.
     """
 
     def __init__(self, root_dir, file_dir, out_name, n_files=None, roll_writes=None, **kwargs):
         """
-        Initializes the profile plotter.
+        Initializes the reader.
 
         # Arguments
             root_dir (str) : 
@@ -239,14 +249,17 @@ class SingleTypeReader():
             file_dir (str) : 
                 subdirectory of root_dir where the data to make PDFs is contained
             out_name (str) : 
-                As in class-level docstring
+                The name of an output directory to create inside root_dir. Also the base name of output figures
             n_files  (int, optional) :
                 Number of files to process. If None, all of them.
+            roll_writes (int, optional) :
+                Number of writes to average over. If None, no rolling average is taken.
             kwargs (dict) : 
                 Additional keyword arguments for FileReader()
         """
         if roll_writes is None:
             self.reader = FileReader(root_dir, sub_dirs=[file_dir,], num_files=[n_files,], **kwargs)
+            self.roll_counts = self.roll_starts = None
         else:
             self.reader = RollingFileReader(root_dir, sub_dirs=[file_dir,], num_files=[n_files,], roll_writes=roll_writes, **kwargs)
             self.roll_counts = self.reader.roll_counts[file_dir]
@@ -287,6 +300,7 @@ class SingleTypeReader():
         """ 
             Increments to the next write on the local MPI process.
             Returns False if there are no writes left and True if a write is found.
+
             For use in a while statement (e.g., while writes_remain(): do stuff).
         """
         if not self.idle:
@@ -313,14 +327,12 @@ class SingleTypeReader():
                 return True
 
     def get_dsets(self, tasks, verbose=True):
-        """ Given a list of task strings, returns a dictionary of the associated datasets. """
+        """ Given a list of task strings, returns a dictionary of the associated datasets and the dset index of the current write. """
         if not self.idle:
             if self.comm.rank == 0 and verbose:
                 print('gathering {} tasks; write {}/{} on process 0'.format(tasks, self.current_write+1, self.writes))
                 stdout.flush()
 
-    #        self.output['f'] = f = self.current_file_handle
-    #        self.output['ni'] = ni = self.file_index[self.current_write]
             f = self.current_file_handle    
             ni = self.file_index[self.current_write]
             for k in tasks:
