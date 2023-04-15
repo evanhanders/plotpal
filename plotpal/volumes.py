@@ -139,7 +139,7 @@ class Box:
     def __init__(self, left, right, top, left_mid=None , right_mid=None, top_mid=None, x_basis='x',\
      y_basis='y',z_basis='z', cmap='RdBu_r', pos_def=False, vmin=None, vmax=None, log=False,\
      remove_mean=False, remove_x_mean=False, remove_y_mean=False,vector_ind=None, label=None, cmap_exclusion=0.005,\
-     azim=25, elev=10):
+     azim=25, elev=10, stretch=0):
         
         self.first=True
         self.left=left
@@ -166,6 +166,7 @@ class Box:
         self.cmap_exclusion = cmap_exclusion
         self.azim = azim
         self.elev=elev
+        self.stretch = stretch
         if left_mid is not None and right_mid is not None and top_mid is not None:
             self.cutout=True
         else:
@@ -208,20 +209,17 @@ class Box:
         # Add and setup colorbar & label
         norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
 
-        cb = matplotlib.colorbar.ColorbarBase(cax, cmap=cmap,
-                                norm=norm,
-                                orientation='horizontal')
+        cb = matplotlib.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, orientation='horizontal')
         cb.solids.set_rasterized(True)
-        cb.set_ticks((vmin, vmax))
-        cax.tick_params(direction='in', pad=1)
-        cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
+        cb.set_ticks(())
+        cax.text(-0.01, 0.5, r'$_{{{:.2e}}}^{{{:.2e}}}$'.format(vmin, vmax), transform=cax.transAxes, ha='right', va='center')
         cax.xaxis.set_ticks_position('bottom')
         if self.label is not None:
-            cax.text(0.5, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='center')
+            cax.text(1.05, 0.5, '{:s}'.format(self.label), transform=cax.transAxes, va='center', ha='left')
         return cb
      
 
-    def plot_colormesh(self, dsets, ni, ax=None, cax=None, pl=None, engine='matplotlib', **kwargs):
+    def plot_colormesh(self, dsets, ni, ax=None, cax=None, pl=None, engine='matplotlib', distance=1.25, **kwargs):
         
         if self.first:
             x = match_basis(dsets[self.top], self.x_basis)
@@ -274,14 +272,17 @@ class Box:
             mid_left_field = self._modify_field(mid_left_field)
             mid_right_field = self._modify_field(mid_right_field)
             mid_top_field = self._modify_field(mid_top_field)
+
+            side_stretch = self.stretch
+            mid_stretch = - self.stretch
             
-            xy_side = construct_surface_dict(self.x, self.y, self.z_max, top_field,x_bounds=(self.x_min, self.x_mid), y_bounds=(self.y_min, self.y_mid))
-            xz_side = construct_surface_dict(self.x, self.y_max, self.z, right_field, x_bounds=(self.x_min, self.x_mid), z_bounds=(self.z_min, self.z_mid))
-            yz_side = construct_surface_dict(self.x_max, self.y, self.z, left_field, y_bounds=(self.y_min, self.y_mid), z_bounds=(self.z_min, self.z_mid))
+            xy_side = construct_surface_dict(self.x, self.y, self.z_max, top_field,x_bounds=(self.x_min, self.x_mid + side_stretch*self.Lx), y_bounds=(self.y_min, self.y_mid + side_stretch*self.Ly))
+            xz_side = construct_surface_dict(self.x, self.y_max, self.z, right_field, x_bounds=(self.x_min, self.x_mid + side_stretch*self.Lx), z_bounds=(self.z_min, self.z_mid + side_stretch*self.Lz))
+            yz_side = construct_surface_dict(self.x_max, self.y, self.z, left_field, y_bounds=(self.y_min, self.y_mid + side_stretch*self.Ly), z_bounds=(self.z_min, self.z_mid + side_stretch*self.Lz))
             
-            xy_mid = construct_surface_dict(self.x, self.y, self.z_mid, mid_top_field,x_bounds=(self.x_mid, self.x_max), y_bounds=(self.y_mid, self.y_max), bool_function=np.logical_and)
-            xz_mid = construct_surface_dict(self.x, self.y_mid, self.z, mid_right_field, x_bounds=(self.x_mid, self.x_max), z_bounds=(self.z_mid, self.z_max), bool_function=np.logical_and)
-            yz_mid = construct_surface_dict(self.x_mid, self.y, self.z, mid_left_field, y_bounds=(self.y_mid, self.y_max), z_bounds=(self.z_mid, self.z_max), bool_function=np.logical_and)
+            xy_mid = construct_surface_dict(self.x, self.y, self.z_mid, mid_top_field,x_bounds=(self.x_mid + mid_stretch*self.Lx, self.x_max), y_bounds=(self.y_mid + mid_stretch*self.Ly, self.y_max), bool_function=np.logical_and)
+            xz_mid = construct_surface_dict(self.x, self.y_mid, self.z, mid_right_field, x_bounds=(self.x_mid + mid_stretch*self.Lx, self.x_max), z_bounds=(self.z_mid + mid_stretch*self.Lz, self.z_max), bool_function=np.logical_and)
+            yz_mid = construct_surface_dict(self.x_mid, self.y, self.z, mid_left_field, y_bounds=(self.y_mid + mid_stretch*self.Ly, self.y_max), z_bounds=(self.z_mid + mid_stretch*self.Lz, self.z_max), bool_function=np.logical_and)
             
         else:
             xy_side = construct_surface_dict(self.x, self.y, self.z_max, top_field)
@@ -322,12 +323,14 @@ class Box:
                             import pyvista as pv
                         except ImportError:
                             raise ImportError("PyVista must be installed for 3D pyvista plotting in plotpal")
-                    self.pv_grids.append(pv.StructuredGrid(x, y, z))
-                    self.pv_grids[i][self.label] = np.array(d['surfacecolor'].flatten(order='F'))
-                    pl.add_mesh(self.pv_grids[i], scalars=self.label, cmap = self.cmap, clim = [vmin, vmax], scalar_bar_args={'color' : 'black'})
+                    grid = pv.StructuredGrid(x, y, z)
+                    grid[self.label] = np.array(d['surfacecolor'].flatten(order='F'))
+                    mesh = pl.add_mesh(grid, scalars=self.label, cmap = self.cmap, clim = [vmin, vmax], scalar_bar_args={'color' : 'black'})
+                    self.pv_grids.append((grid, mesh))
                 else:
-                    self.pv_grids[i][self.label] = np.array(d['surfacecolor'].flatten(order='F'))
-                    #pl.update_scalars(self.label, self.pv_grids[i], render=False)
+                    grid, mesh = self.pv_grids[i]
+                    grid[self.label] = np.array(d['surfacecolor'].flatten(order='F'))
+                    mesh.mapper.scalar_range = (vmin, vmax)
             else:
                 raise ValueError("engine must be 'matplotlib' or 'pyvista'")
         
@@ -359,7 +362,8 @@ class Box:
             return surf, cb
         elif engine == 'pyvista':
             if self.first:
-                pl.camera.position = tuple(1.25*np.array(pl.camera.position))
+                #TODO: implement azim and elem. currently at default azim=elev=45 ?
+                pl.camera.position = tuple(distance*np.array(pl.camera.position))
             if not self.first:
                 pl.update(force_redraw=True)
                 pl.update_scalar_bar_range([vmin, vmax], name=self.label)
@@ -767,7 +771,7 @@ class PyVistaBoxPlotter(BoxPlotter):
                     self.grid.change_focus_single(k)
                     bx.plot_colormesh(dsets, ni, pl=self.grid.pl, engine='pyvista', **kwargs)
 
-                
+                self.grid.change_focus_single(0)
                 titleactor = self.grid.pl.add_title('t={:.4e}'.format(time_data['sim_time'][ni]), color='black')
                
                 self.grid.save('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.out_name, int(time_data['write_number'][ni]+start_fig-1)))
