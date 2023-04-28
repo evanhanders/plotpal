@@ -18,7 +18,7 @@ class Colormesh:
     def __init__(self, task, vector_ind=None, x_basis='x', y_basis='z', cmap='RdBu_r', label=None,
                  remove_mean=False, remove_x_mean=False, divide_x_std=False, pos_def=False,
                  vmin=None, vmax=None, log=False, cmap_exclusion=0.005,
-                 linked_cbar_cm=None, linked_profile_cm=None, transpose=True):
+                 linked_cbar_cm=None, linked_profile_cm=None, transpose=False):
         """
         Initialize the object
         
