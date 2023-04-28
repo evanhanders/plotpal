@@ -18,7 +18,7 @@ class Colormesh:
     def __init__(self, task, vector_ind=None, x_basis='x', y_basis='z', cmap='RdBu_r', label=None,
                  remove_mean=False, remove_x_mean=False, divide_x_std=False, pos_def=False,
                  vmin=None, vmax=None, log=False, cmap_exclusion=0.005,
-                 linked_cbar_cm=None, linked_profile_cm=None):
+                 linked_cbar_cm=None, linked_profile_cm=None, transpose=True):
         """
         Initialize the object
         
@@ -52,6 +52,8 @@ class Colormesh:
             A Colormesh object that this object shares a colorbar with
         linked_profile_cm (Colormesh) :
             A Colormesh object that this object shares a mean profile with
+        transpose (bool) :
+            If True, transpose the colormap when plotting; useful when x_basis has an index after y_basis in dedalus data.
         """
         self.task, self.vector_ind, self.x_basis, self.y_basis = task, vector_ind, x_basis, y_basis
         self.remove_mean, self.remove_x_mean, self.divide_x_std = remove_mean, remove_x_mean, divide_x_std
@@ -59,6 +61,7 @@ class Colormesh:
         self.pos_def, self.log = pos_def, log
         self.vmax, self.vmin = vmax, vmin
         self.linked_cbar_cm, self.linked_profile_cm = linked_cbar_cm, linked_profile_cm
+        self.transpose = transpose
 
         self.first = True
         self.xx, self.yy = None, None
@@ -184,6 +187,8 @@ class Colormesh:
         if 'shading' not in kwargs.keys():
             kwargs['shading'] = 'nearest'
 
+        if self.transpose:
+            field = field.T
         self.color_plot = ax.pcolormesh(self.xx, self.yy, field.real, cmap=self.cmap, vmin=vmin, vmax=vmax, **kwargs)
         cb = self._setup_colorbar(self.color_plot, cax, vmin, vmax)
         self.first = False
