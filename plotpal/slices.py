@@ -221,6 +221,7 @@ class PolarColormesh(Colormesh):
     def _modify_field(self, field):
         field = super()._modify_field(field)
         field = np.pad(field, ((0, 1), (1, 1)), mode='edge')
+        field[-1,:] = field[0,:] #set 2pi value == 0 value.
         return field
 
     def _get_pcolormesh_coordinates(self, dset):
