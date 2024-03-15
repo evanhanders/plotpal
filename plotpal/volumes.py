@@ -417,7 +417,7 @@ class CutSphere:
     A class that plots Spherical surface renderings in 3D.
     """
 
-    def __init__(self, equator, left_meridian, right_meridian, outer_shell, vector_ind=None, view=0, 
+    def __init__(self, equator, left_meridian, right_meridian, inner_shell, outer_shell, vector_ind=None, view=0, 
                  r_basis='r', phi_basis='phi',theta_basis='theta', max_r = None, r_inner = 0, cmap='RdBu_r', label=None,
                  vmin=None, vmax=None, cmap_exclusion=0.005, pos_def=False, log=False,
                  remove_mean=False, remove_radial_mean=False, divide_radial_stdev=False):
@@ -431,6 +431,8 @@ class CutSphere:
             If a list of strings is given, the fields are assumed to be sequential fields in the radial direction.
         outer_shell : string
             The name of the field to plot on the outer shell.
+        inner_shell : string
+            The name of the field to plot on the inner shell.
         vector_ind : int, optional
             If the field is a vector field, the index of the component to plot.
         view : int, optional
@@ -460,7 +462,7 @@ class CutSphere:
         divide_radial_stdev : bool, optional
             If True, the field is divided by the standard deviation in azimuth before plotting. Default is False        
         """
-        self.equator, self.left_meridian, self.right_meridian, self.outer_shell = equator, left_meridian, right_meridian, outer_shell
+        self.equator, self.left_meridian, self.right_meridian, self.inner_shell, self.outer_shell = equator, left_meridian, right_meridian, inner_shell, outer_shell
         self.vector_ind = vector_ind
         self.view = view
         self.r_basis, self.phi_basis, self.theta_basis = r_basis, phi_basis, theta_basis
@@ -560,35 +562,45 @@ class CutSphere:
             #Build cartesian coordinates
             phi_vert, theta_vert, r_vert = build_spherical_vertices(self.phi, self.theta, self.r, self.r_inner, self.r_outer)
             phi_vert_out, theta_vert_out, r_vert_out = build_spherical_vertices(self.shell_phi, self.shell_theta, self.r, self.r_inner, self.r_outer)
+            phi_vert_in, theta_vert_in, r_vert_in = build_spherical_vertices(self.shell_phi, self.shell_theta, self.r, self.r_inner, self.r_outer)
             theta_mer = np.concatenate([-self.theta, self.theta[::-1]])
             self.x_out, self.y_out, self.z_out = spherical_to_cartesian(phi_vert_out, theta_vert_out, [self.r_outer,])[:,:,:,0]
+            self.x_in, self.y_in, self.z_in = spherical_to_cartesian(phi_vert_in, theta_vert_in, [self.r_inner,])[:,:,:,0]
             self.x_eq, self.y_eq, self.z_eq = spherical_to_cartesian(phi_vert, [np.pi/2,], r_vert)[:,:,0,:]
             self.x_mer, self.y_mer, self.z_mer = spherical_to_cartesian([phi_mer1,], theta_mer, r_vert)[:,0,:,:]
 
             #Create boolean arrays that pick out the correct slices according to the specified view.
             mer_pick = self.z_mer >= 0
             if self.view == 0:
-                shell_pick = np.logical_or(self.z_out <= 0, self.y_out <= 0)
+                shell_pick_out = np.logical_or(self.z_out <= 0, self.y_out <= 0)
+                shell_pick_in = np.logical_or(self.z_in <= 0, self.y_in <= 0)
                 eq_pick = self.y_eq >= 0
             elif self.view == 1:
-                shell_pick = np.logical_or(self.z_out <= 0, self.x_out >= 0)
+                shell_pick_out = np.logical_or(self.z_out <= 0, self.x_out >= 0)
+                shell_pick_in = np.logical_or(self.z_in <= 0, self.x_in>= 0)
                 eq_pick = self.x_eq <= 0
             elif self.view == 2:
-                shell_pick = np.logical_or(self.z_out <= 0, self.y_out >= 0)
+                shell_pick_out = np.logical_or(self.z_out <= 0, self.y_out >= 0)
+                shell_pick_in = np.logical_or(self.z_in <= 0, self.y_in >= 0)
                 eq_pick = self.y_eq <= 0
             elif self.view == 3:
-                shell_pick = np.logical_or(self.z_out <= 0, self.x_out <= 0)
+                shell_pick_out = np.logical_or(self.z_out <= 0, self.x_out <= 0)
+                shell_in = np.logical_or(self.z_in <= 0, self.x_in <= 0)
                 eq_pick = self.x_eq >= 0
 
             #Construct dictionaries of the x, y, z, and pick arrays for each slice.
+            self.in_data = OrderedDict()
+            
             self.out_data = OrderedDict()
             self.mer_data = OrderedDict()
             self.eq_data = OrderedDict()
 
-            self.out_data['pick'] = shell_pick
+            self.out_data['pick'] = shell_pick_out
+            self.in_data['pick'] = shell_pick_in
             self.eq_data['pick'] = eq_pick
             self.mer_data['pick'] = mer_pick
             
+            self.in_data['x'], self.in_data['y'], self.in_data['z'] = self.x_in, self.y_in, self.z_in
             self.out_data['x'], self.out_data['y'], self.out_data['z'] = self.x_out, self.y_out, self.z_out
             self.eq_data['x'], self.eq_data['y'], self.eq_data['z'] = self.x_eq, self.y_eq, self.z_eq
             self.mer_data['x'], self.mer_data['y'], self.mer_data['z'] = self.x_mer, self.y_mer, self.z_mer
@@ -647,6 +659,16 @@ class CutSphere:
         if self.divide_radial_stdev:
             shell_field /= self.radial_stdev_func(self.r_outer)
         self.out_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
+        
+        
+        # Build inner shell field
+        shell_field = dsets[self.inner_shell][ni].squeeze()
+        if self.remove_radial_mean:
+            shell_field -= self.radial_mean_func(self.r_outer)
+        if self.divide_radial_stdev:
+            shell_field /= self.radial_stdev_func(self.r_outer)
+        self.in_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
+
 
         # Get min and max values for colorbar
         if self.first:
@@ -656,7 +678,7 @@ class CutSphere:
         else:
             self.vmin[0], self.vmax[0] = self._get_minmax(self.eq_data['field'])
         cmap = matplotlib.cm.get_cmap(self.cmap)
-        self.data_dicts = [self.out_data, self.mer_data, self.eq_data]
+        self.data_dicts = [self.out_data, self.in_data, self.mer_data, self.eq_data]
 
         # Loop over each slice and plot the data.
         pl.set_background('white', all_renderers=False)
@@ -692,7 +714,7 @@ class CutSphere:
         
         if not self.first:
             pl.update(force_redraw=True)
-            pl.update_scalar_bar_range([self.vmin[0], self.vmax[0]], name=self.label)
+            #pl.update_scalar_bar_range([self.vmin[0], self.vmax[0]], name=self.label)
         self.first = False
 
 
@@ -859,7 +881,7 @@ class PyVistaSpherePlotter(PyVistaBoxPlotter):
         with self.my_sync:
             tasks = []
             for k, sp in self.spheres:
-                for task in sp.equator + sp.left_meridian + sp.right_meridian + [sp.outer_shell,]:
+                for task in sp.equator + sp.left_meridian + sp.right_meridian + [sp.inner_shell,sp.outer_shell]:
                     if task not in tasks:
                         tasks.append(task)
             if self.idle: return
