@@ -664,9 +664,9 @@ class CutSphere:
         # Build inner shell field
         shell_field = dsets[self.inner_shell][ni].squeeze()
         if self.remove_radial_mean:
-            shell_field -= self.radial_mean_func(self.r_outer)
+            shell_field -= self.radial_mean_func(self.r_inner)
         if self.divide_radial_stdev:
-            shell_field /= self.radial_stdev_func(self.r_outer)
+            shell_field /= self.radial_stdev_func(self.r_inner)
         self.in_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
 
 
