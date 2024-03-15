@@ -678,7 +678,11 @@ class CutSphere:
         else:
             self.vmin[0], self.vmax[0] = self._get_minmax(self.eq_data['field'])
         cmap = matplotlib.cm.get_cmap(self.cmap)
-        self.data_dicts = [self.out_data, self.in_data, self.mer_data, self.eq_data]
+        
+        self.data_dicts = [self.out_data, self.mer_data, self.eq_data]
+        if self.r_inner>0:
+            self.data_dicts = [self.out_data, self.in_data, self.mer_data, self.eq_data]
+            
 
         # Loop over each slice and plot the data.
         pl.set_background('white', all_renderers=False)
@@ -881,7 +885,10 @@ class PyVistaSpherePlotter(PyVistaBoxPlotter):
         with self.my_sync:
             tasks = []
             for k, sp in self.spheres:
-                for task in sp.equator + sp.left_meridian + sp.right_meridian + [sp.inner_shell,sp.outer_shell]:
+                tasks = sp.equator + sp.left_meridian + sp.right_meridian + [sp.outer_shell]
+                if sp.r_inner>0:
+                    tasks += [sp.inner_shell]
+                for task in tasks:
                     if task not in tasks:
                         tasks.append(task)
             if self.idle: return
