@@ -417,7 +417,7 @@ class CutSphere:
     A class that plots Spherical surface renderings in 3D.
     """
 
-    def __init__(self, equator, left_meridian, right_meridian, inner_shell, outer_shell, vector_ind=None, view=0, 
+    def __init__(self, equator, left_meridian, right_meridian, outer_shell, inner_shell=None, vector_ind=None, view=0, 
                  r_basis='r', phi_basis='phi',theta_basis='theta', max_r = None, r_inner = 0, cmap='RdBu_r', label=None,
                  vmin=None, vmax=None, cmap_exclusion=0.005, pos_def=False, log=False,
                  remove_mean=False, remove_radial_mean=False, divide_radial_stdev=False):
@@ -431,7 +431,7 @@ class CutSphere:
             If a list of strings is given, the fields are assumed to be sequential fields in the radial direction.
         outer_shell : string
             The name of the field to plot on the outer shell.
-        inner_shell : string
+        inner_shell : string, optional
             The name of the field to plot on the inner shell.
         vector_ind : int, optional
             If the field is a vector field, the index of the component to plot.
@@ -886,7 +886,7 @@ class PyVistaSpherePlotter(PyVistaBoxPlotter):
             tasks = []
             for k, sp in self.spheres:
                 tasks = sp.equator + sp.left_meridian + sp.right_meridian + [sp.outer_shell]
-                if sp.r_inner>0:
+                if sp.inner_shell is not None:
                     tasks += [sp.inner_shell]
                 for task in tasks:
                     if task not in tasks:
