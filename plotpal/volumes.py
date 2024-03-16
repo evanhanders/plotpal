@@ -680,7 +680,7 @@ class CutSphere:
         cmap = matplotlib.cm.get_cmap(self.cmap)
         
         self.data_dicts = [self.out_data, self.mer_data, self.eq_data]
-        if self.inner_shell is None:
+        if self.inner_shell is not None:
             self.data_dicts = [self.out_data, self.in_data, self.mer_data, self.eq_data]
             
 
