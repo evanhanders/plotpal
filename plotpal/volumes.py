@@ -660,14 +660,14 @@ class CutSphere:
             shell_field /= self.radial_stdev_func(self.r_outer)
         self.out_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
         
-        
-        # Build inner shell field
-        shell_field = dsets[self.inner_shell][ni].squeeze()
-        if self.remove_radial_mean:
-            shell_field -= self.radial_mean_func(self.r_inner)
-        if self.divide_radial_stdev:
-            shell_field /= self.radial_stdev_func(self.r_inner)
-        self.in_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
+        if self.inner_shell is not None:
+            # Build inner shell field
+            shell_field = dsets[self.inner_shell][ni].squeeze()
+            if self.remove_radial_mean:
+                shell_field -= self.radial_mean_func(self.r_inner)
+            if self.divide_radial_stdev:
+                shell_field /= self.radial_stdev_func(self.r_inner)
+            self.in_data['field'] = np.pad(shell_field, ((0,1), (0,1)), mode = 'edge')
 
 
         # Get min and max values for colorbar
@@ -680,7 +680,7 @@ class CutSphere:
         cmap = matplotlib.cm.get_cmap(self.cmap)
         
         self.data_dicts = [self.out_data, self.mer_data, self.eq_data]
-        if self.r_inner>0:
+        if self.inner_shell is None:
             self.data_dicts = [self.out_data, self.in_data, self.mer_data, self.eq_data]
             
 
