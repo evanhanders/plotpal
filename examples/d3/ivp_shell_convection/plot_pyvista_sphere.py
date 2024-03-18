@@ -30,6 +30,6 @@ if n_files is not None:
 
 plotter = PyVistaSpherePlotter(root_dir, file_dir=data_dir, out_name=out_name, start_file=start_file, n_files=n_files)
 plotter.setup_grid(num_rows=1, num_cols=1, size=900)
-plotter.add_sphere(equator='flux(equator)',left_meridian='flux_phi_start', right_meridian='flux_phi_end', inner_shell='flux_r_inner',outer_shell='flux_r_outer', view=0, cmap='cividis', label="X", r_inner = 14, max_r = 15, remove_radial_mean=True, divide_radial_stdev=False)
+plotter.add_sphere(equator='flux(equator)',left_meridian='flux_phi_start', right_meridian='flux_phi_end', inner_shell='flux_r_inner',outer_shell='flux_r_outer', view=0, cmap='cividis', label="Buoyancy flux", r_inner = 14, max_r = 15, remove_radial_mean=True, divide_radial_stdev=False)
 
 plotter.plot_spheres()
