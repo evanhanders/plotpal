@@ -1,5 +1,7 @@
 """
 Dedalus script simulating Boussinesq convection in a spherical shell. This script
+is directly copied from the Dedalus 3 repository see
+https://github.com/DedalusProject/dedalus/tree/master/examples/ivp_shell_convection. This script
 demonstrates solving an initial value problem in the shell. It can be ran serially
 or in parallel, and uses the built-in analysis framework to save data snapshots
 to HDF5 files. The `plot_shell.py` script can be used to produce plots from the
